@@ -1,0 +1,17 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: acrm-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: crm_root
+      MARIADB_DATABASE: crm_v1
+      MARIADB_USER: crm
+      MARIADB_PASSWORD: crm_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - acrm_db_data:/var/lib/mysql
+
+volumes:
+  acrm_db_data:

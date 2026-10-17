@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/*
+  ASDEM brand — лавандовая система:
+  key из лого #B0A0C8 + тема 21st «Lavender Glass» (primary #7D6EB7, paper #F7F7FD).
+  brand-deep #534D73 — CTA с белым текстом (WCAG AA).
+*/
+@theme {
+  --font-sans: "Montserrat", system-ui, sans-serif;
+  --font-display: "Cormorant", Georgia, serif;
+
+  --color-brand: #b0a0c8;
+  --color-brand-deep: #534d73;
+  --color-brand-soft: #e8e5f9;
+  --color-ink: #303044;
+  --color-paper: #f7f7fd;
+  --color-line: #e3e3ed;
+  --color-dim: #727284;
+  --color-muted: #f2f2f8;
+  --color-on-brand: #ffffff;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  @apply bg-paper text-ink font-sans;
+  font-size: 16px;
+}
+
+/* —— Preloader (21st-inspired slide-up, ASDEM logo) —— */
+.preloader {
+  transition: transform 0.8s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+
+.preloader--exit {
+  transform: translateY(-100%);
+}
+
+.preloader__mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 0.7s ease-out,
+    transform 0.7s ease-out;
+}
+
+.preloader__mark--in {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.preloader__line {
+  display: block;
+  height: 1px;
+  width: 0;
+  background: var(--color-brand);
+  transition: width 0.9s cubic-bezier(0.76, 0, 0.24, 1) 0.25s;
+}
+
+.preloader__mark--in .preloader__line {
+  width: 4.5rem;
+}
+
+/* —— Zara-like home hero —— */
+.home-hero__plane {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 78% 35%, color-mix(in srgb, var(--color-brand-soft) 70%, transparent), transparent 65%),
+    radial-gradient(ellipse 55% 50% at 18% 80%, color-mix(in srgb, var(--color-brand) 22%, transparent), transparent 60%),
+    linear-gradient(165deg, var(--color-paper) 0%, #ffffff 42%, color-mix(in srgb, var(--color-brand-soft) 40%, var(--color-paper)) 100%);
+}
+
+.home-hero__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.home-hero__brand {
+  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home-hero__copy {
+  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.home-hero__cta {
+  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.home-hero__scroll {
+  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+.btn {
+  @apply label inline-flex min-h-11 cursor-pointer items-center justify-center border border-brand-deep bg-brand-deep px-8 py-3 text-on-brand transition-colors duration-200 hover:border-[#6b5fa8] hover:bg-[#6b5fa8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+.btn-ghost {
+  @apply label inline-flex min-h-11 cursor-pointer items-center justify-center border border-brand-deep bg-transparent px-8 py-3 text-brand-deep transition-colors duration-200 hover:bg-brand-deep hover:text-on-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+/* кнопки на тёмном фоне (блок «Как оформить заказ») */
+.btn--on-dark {
+  @apply border-paper bg-paper text-ink hover:border-brand hover:bg-brand;
+}
+
+.btn-ghost--on-dark {
+  @apply border-paper/50 text-paper hover:border-paper hover:bg-paper hover:text-ink;
+}
+
+.input {
+  @apply min-h-11 w-full border-0 border-b border-line bg-transparent px-0 py-3 text-sm outline-none transition-colors duration-200 placeholder:text-dim focus:border-brand-deep;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .preloader,
+  .preloader__mark,
+  .preloader__line,
+  .home-hero__brand,
+  .home-hero__copy,
+  .home-hero__scroll {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* —— Лендинг: появление блоков, отзывы —— */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal--in {
+  opacity: 1;
+  transform: none;
+}
+
+.reviews {
+  background:
+    radial-gradient(ellipse 60% 45% at 85% 10%, color-mix(in srgb, var(--color-brand) 30%, transparent), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 10% 90%, color-mix(in srgb, var(--color-brand-soft) 90%, transparent), transparent 70%),
+    var(--color-brand-soft);
+}
+
+.review-bubble {
+  border-radius: 16px;
+  filter: drop-shadow(0 10px 24px rgb(83 77 115 / 0.16));
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.review-bubble--tilt-l {
+  transform: rotate(-1.2deg);
+}
+
+.review-bubble--tilt-r {
+  transform: rotate(1deg);
+}
+
+.review-bubble:hover {
+  transform: rotate(0) scale(1.02);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

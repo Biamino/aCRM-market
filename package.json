@@ -1,0 +1,22 @@
+{
+  "name": "acrm-market",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "db:up": "docker compose up -d",
+    "db:schema": "npm run db:schema -w server",
+    "db:setup": "npm run db:seed -w server"
+  },
+  "devDependencies": {
+    "@types/multer": "^2.2.0",
+    "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "multer": "^2.2.0"
+  }
+}

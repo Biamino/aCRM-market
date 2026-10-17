@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { app } from "../src/app.js";
-import { accounts, BRANCHES, closePools, runInBranch, q } from "../src/db.js";
+import { accounts, BRANCHES, closePools, pool, runInBranch, q } from "../src/db.js";
 import { diskPathFromUrl, thumbPath } from "../src/product-media.js";
 import { injectMeta, SITE_URL } from "../src/seo.js";
 import sharp from "sharp";
@@ -248,11 +248,13 @@ describe("заказы", () => {
   it("новый клиент получает карточку CRM в филиале при первом заказе", async () => {
     // свежий e-mail: контакты в CRM уникальны на всю базу, а клиенты из прошлых прогонов остаются
     const email = `new-${Date.now()}@client.ru`;
-    const reg = await req("/auth/register", { body: { email, password: "client123", name: "Дмитрий Орлов", phone: "+996 700 00-00-00" } });
+    const phone = `+996 5${String(Date.now()).slice(-8)}`; // в CRM такого номера ещё нет
+    const reg = await req("/auth/register", { body: { email, password: "client123", name: "Дмитрий Орлов", phone } });
     assert.equal(reg.status, 201, reg.data.error);
     const regs = await req("/admin/registrations", { token: admin });
     const pending = regs.data.users.find((u: any) => u.email === email);
     assert.equal(pending.status, "PENDING");
+    assert.deepEqual(pending.crmMatches, [], "в CRM такого клиента нет");
     const appr = await req(`/admin/registrations/${pending.id}/approve`, { token: admin, body: { priceGroupId: 2 } });
     assert.equal(appr.status, 200, appr.data.error);
     const token = await login(email, "client123");
@@ -290,6 +292,62 @@ describe("заказы", () => {
     const std = (await req(`/catalog/products/${p.id}`, { branch: B2, token: client })).data.product;
     assert.equal(p.price, Math.round(std.price * 0.95));
     assert.equal(r.data.order.items[0].unitPrice, p.price);
+  });
+});
+
+describe("клиент, который уже есть в CRM", () => {
+  it("по телефону привязывается к его карточке и видит заказы из CRM", async () => {
+    const digits = String(Date.now()).slice(-9);
+    const crmPhone = `+996 (${digits.slice(0, 3)}) ${digits.slice(3, 5)}-${digits.slice(5, 7)}-${digits.slice(7)}`;
+    // клиент магазина, заведённый в CRM второго филиала, с заказом через менеджера
+    const { customerId, orderId } = await inBranch(B2, async () => {
+      const [cr]: any = await pool().query(
+        "INSERT INTO customers (name, company, note) VALUES ('Айгуль Магазин', 'ИП Айгуль', 'клиент CRM')",
+      );
+      await pool().query(
+        "INSERT INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'phone', ?, 1)",
+        [cr.insertId, crmPhone],
+      );
+      const user = await q<any>("SELECT id FROM users ORDER BY id LIMIT 1");
+      const [or]: any = await pool().query(
+        "INSERT INTO orders (customer_id, status, total_sum, paid_sum, comment, created_by) VALUES (?, 'completed', 5000, 5000, 'заказ через менеджера', ?)",
+        [cr.insertId, user[0].id],
+      );
+      return { customerId: Number(cr.insertId), orderId: Number(or.insertId) };
+    });
+
+    // регистрируется с тем же номером в другой записи
+    const email = `crm-${digits}@shop.kg`;
+    await req("/auth/register", { body: { email, password: "client123", name: "Айгуль", phone: `0${digits}` } });
+    const regs = await req("/admin/registrations", { token: admin });
+    const pending = regs.data.users.find((u: any) => u.email === email);
+    assert.deepEqual(
+      pending.crmMatches.map((m: any) => [m.branch, m.customerId, m.by]),
+      [[B2, customerId, "phone"]],
+      "админ видит совпадение до одобрения",
+    );
+    await req(`/admin/registrations/${pending.id}/approve`, { token: admin, body: {} });
+    const token = await login(email, "client123");
+
+    // история из CRM видна сразу, ещё до заказа на сайте; в другом филиале — пусто
+    const mine = await req("/orders", { branch: B2, token });
+    assert.deepEqual(mine.data.orders.map((o: any) => o.id), [orderId]);
+    assert.equal((await req(`/orders/${orderId}`, { branch: B2, token })).status, 200);
+    assert.deepEqual((await req("/orders", { branch: B1, token })).data.orders, []);
+
+    // заказ с сайта — на ту же карточку, новый клиент не создаётся, e-mail дописан в карточку
+    const p = await stockedProduct(B2, token);
+    const before = await inBranch(B2, () => q<any>("SELECT COUNT(*) AS n FROM customers")).then((r) => Number(r[0].n));
+    const r = await req("/orders", { branch: B2, token, body: { items: [{ productId: p.id, color: p.color, packs: 1 }] } });
+    assert.equal(r.status, 201, r.data.error);
+    const [row] = await inBranch(B2, () => q<any>("SELECT customer_id FROM orders WHERE id = ?", [r.data.order.id]));
+    assert.equal(Number(row.customer_id), customerId);
+    assert.equal(await inBranch(B2, () => q<any>("SELECT COUNT(*) AS n FROM customers")).then((x) => Number(x[0].n)), before);
+    const contacts = await inBranch(B2, () =>
+      q<any>("SELECT contact_type, value FROM customer_contacts WHERE customer_id = ? ORDER BY contact_type", [customerId]),
+    );
+    assert.deepEqual(contacts.map((c: any) => c.contact_type), ["email", "phone"]);
+    assert.equal(contacts.find((c: any) => c.contact_type === "phone").value, crmPhone, "телефон в CRM не перезаписан");
   });
 });
 
@@ -361,7 +419,7 @@ describe("админка", () => {
     // «фото с телефона»: 3000×4000
     const png = await sharp({ create: { width: 3000, height: 4000, channels: 3, background: "#b0a3cd" } }).png().toBuffer();
     const form = new FormData();
-    form.append("photos", new Blob([png], { type: "image/png" }), "a.png");
+    form.append("photos", new Blob([new Uint8Array(png)], { type: "image/png" }), "a.png");
     const up = await fetch(`${base}/api/admin/products/${target.id}/images?color=`, {
       method: "POST",
       headers: { Authorization: `Bearer ${admin}`, "X-Branch": B2 },
@@ -379,7 +437,7 @@ describe("админка", () => {
     assert.equal((await sharp(readFileSync(thumb)).metadata()).width, 640);
 
     const bad = new FormData();
-    bad.append("photos", new Blob([Buffer.from("not an image")], { type: "image/png" }), "x.png");
+    bad.append("photos", new Blob([new TextEncoder().encode("not an image")], { type: "image/png" }), "x.png");
     const badUp = await fetch(`${base}/api/admin/products/${target.id}/images`, {
       method: "POST",
       headers: { Authorization: `Bearer ${admin}`, "X-Branch": B2 },

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import type { PoolConnection } from "mysql2/promise";
-import { accounts, branch, num, one, q, tx } from "../db.js";
+import { accounts, branch, num, one, pool, q, tx } from "../db.js";
 import { requireAuth, type AuthUser } from "../auth.js";
 import { ORDER_STATUS_SQL, timeline } from "../crm.js";
+import { findCrmCustomer, samePhone } from "../customer-match.js";
 import { galleryUrls, mediaByProduct } from "../product-media.js";
 
 export const ordersRouter = Router();
@@ -28,12 +29,70 @@ export async function webServiceUserId(): Promise<number> {
 }
 
 /**
- * Карточка клиента в CRM текущего филиала. Аккаунт маркета общий для филиалов,
- * а клиент в CRM филиала появляется при первом заказе там.
+ * Контакты аккаунта в карточку клиента CRM. Занятые другим клиентом CRM пропустит (они уникальны),
+ * а телефон, который у клиента уже записан в другом формате, не дублируем.
  */
-async function customerForBranch(user: AuthUser): Promise<number> {
+async function addContacts(
+  conn: { query: (sql: string, params: unknown[]) => Promise<unknown> },
+  customerId: number,
+  account: { email: string; phone: string | null },
+  primaryPhone: boolean,
+) {
+  const [phones] = (await conn.query(
+    "SELECT value FROM customer_contacts WHERE customer_id = ? AND contact_type IN ('phone', 'whatsapp')",
+    [customerId],
+  )) as [{ value: string }[]];
+  if (account.phone && !phones.some((p) => samePhone(p.value, account.phone))) {
+    await conn.query(
+      "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'phone', ?, ?)",
+      [customerId, account.phone, primaryPhone ? 1 : 0],
+    );
+  }
+  await conn.query(
+    "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'email', ?, 0)",
+    [customerId, account.email],
+  );
+}
+
+/** Связь аккаунта с клиентом CRM филиала. Базы разные — пишем после коммита; при гонке побеждает первая. */
+async function linkCustomer(accountId: number, customerId: number): Promise<number> {
+  await accounts.exec(
+    "INSERT IGNORE INTO web_account_customers (account_id, branch, customer_id) VALUES (?, ?, ?)",
+    [accountId, branch().id, customerId],
+  );
+  const link = await accounts.one(
+    "SELECT customer_id FROM web_account_customers WHERE account_id = ? AND branch = ?",
+    [accountId, branch().id],
+  );
+  return Number(link?.customer_id ?? customerId);
+}
+
+const loadAccount = (id: number) =>
+  accounts.one<{ name: string; company: string | null; phone: string | null; email: string }>(
+    "SELECT name, company, phone, email FROM web_accounts WHERE id = ?",
+    [id],
+  );
+
+/**
+ * Клиент CRM филиала, уже связанный с аккаунтом или найденный по e-mail/телефону. Найденного
+ * сразу привязываем и дописываем ему контакты с сайта — покупатель видит свою историю заказов
+ * из CRM ещё до первого заказа на сайте. Кого одобрять, решает администратор: совпадения
+ * видны в заявках (/admin/registrations). Новую карточку здесь не создаём.
+ */
+async function existingCustomer(user: AuthUser): Promise<number | null> {
   if (user.customerId) return user.customerId;
-  const account = await accounts.one("SELECT name, company, phone, email FROM web_accounts WHERE id = ?", [user.id]);
+  const account = await loadAccount(user.id);
+  const found = account ? await findCrmCustomer(account) : null;
+  if (!account || !found) return null;
+  await addContacts(pool(), found.id, account, false);
+  return linkCustomer(user.id, found.id);
+}
+
+/** Клиент CRM для заказа: существующий (см. existingCustomer) или новая карточка из данных заявки. */
+async function customerForBranch(user: AuthUser): Promise<number> {
+  const existing = await existingCustomer(user);
+  if (existing) return existing;
+  const account = await loadAccount(user.id);
   if (!account) throw new Error("Аккаунт не найден");
   const created = await tx(async (conn) => {
     const [result] = await conn.query(
@@ -41,28 +100,10 @@ async function customerForBranch(user: AuthUser): Promise<number> {
       [account.name, account.company ?? null],
     );
     const customerId = (result as { insertId: number }).insertId;
-    if (account.phone) {
-      await conn.query(
-        "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'phone', ?, 1)",
-        [customerId, account.phone],
-      );
-    }
-    await conn.query(
-      "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'email', ?, 0)",
-      [customerId, account.email],
-    );
+    await addContacts(conn, customerId, account, true);
     return customerId;
   });
-  // базы разные — связь пишем после коммита; при гонке побеждает первая запись
-  await accounts.exec(
-    "INSERT IGNORE INTO web_account_customers (account_id, branch, customer_id) VALUES (?, ?, ?)",
-    [user.id, branch().id, created],
-  );
-  const link = await accounts.one(
-    "SELECT customer_id FROM web_account_customers WHERE account_id = ? AND branch = ?",
-    [user.id, branch().id],
-  );
-  return Number(link?.customer_id ?? created);
+  return linkCustomer(user.id, created);
 }
 
 // V2-W05 + V2-W06: корзина → новый заказ в общих таблицах CRM.
@@ -248,10 +289,11 @@ export function serializeOrder(order: any, items: any[], customer?: any) {
 
 // V2-W07: клиент видит только свои заказы (по customer_id общей базы)
 ordersRouter.get("/", requireAuth, async (req, res) => {
-  if (!req.user!.customerId) return res.json({ orders: [] });
+  const customerId = await existingCustomer(req.user!);
+  if (!customerId) return res.json({ orders: [] });
   const orders = await q(
     `${ORDER_SELECT} WHERE o.customer_id = ? ORDER BY o.created_at DESC, o.id DESC LIMIT 100`,
-    [req.user!.customerId],
+    [customerId],
   );
   const items = await loadItems(orders.map((o) => Number(o.id)));
   res.json({ orders: orders.map((o) => serializeOrder(o, items.get(Number(o.id)) ?? [])) });
@@ -260,7 +302,7 @@ ordersRouter.get("/", requireAuth, async (req, res) => {
 ordersRouter.get("/:id", requireAuth, async (req, res) => {
   const order = await one(`${ORDER_SELECT} WHERE o.id = ?`, [Number(req.params.id)]);
   // чужие заказы недоступны
-  if (!order || Number(order.customer_id) !== req.user!.customerId)
+  if (!order || Number(order.customer_id) !== (await existingCustomer(req.user!)))
     return res.status(404).json({ error: "Заказ не найден" });
   const items = await loadItems([Number(order.id)]);
   res.json({ order: serializeOrder(order, items.get(Number(order.id)) ?? []) });

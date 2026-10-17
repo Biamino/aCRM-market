@@ -25,16 +25,19 @@ CREATE TABLE IF NOT EXISTS web_accounts (
 );
 
 -- Карточка клиента (customers.id) аккаунта в CRM каждого филиала.
--- Появляется при первом заказе в филиале.
+-- Появляется при первом заказе в филиале: существующий клиент CRM с тем же e-mail/телефоном
+-- или новый. Несколько аккаунтов (сотрудники одного магазина) могут вести одного клиента.
 CREATE TABLE IF NOT EXISTS web_account_customers (
     account_id BIGINT NOT NULL,
     branch VARCHAR(40) NOT NULL,
     customer_id BIGINT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (account_id, branch),
-    UNIQUE KEY uq_branch_customer (branch, customer_id),
+    INDEX idx_branch_customer (branch, customer_id),
     FOREIGN KEY (account_id) REFERENCES web_accounts(id) ON DELETE CASCADE
 );
+ALTER TABLE web_account_customers DROP INDEX IF EXISTS uq_branch_customer;
+CREATE INDEX IF NOT EXISTS idx_branch_customer ON web_account_customers (branch, customer_id);
 
 INSERT IGNORE INTO web_price_groups (id, name, multiplier) VALUES
     (1, 'Стандарт', 1.000),

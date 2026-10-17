@@ -10,6 +10,8 @@ interface Registration {
   status: string;
   priceGroup: string | null;
   createdAt: string;
+  /** клиенты CRM с тем же e-mail/телефоном — к ним аккаунт привяжется и увидит их заказы */
+  crmMatches?: { branch: string; branchName: string; customerId: number; name: string; by: "email" | "phone" }[];
 }
 
 interface PriceGroup {
@@ -77,6 +79,20 @@ export default function RegistrationsPage() {
                   <p className="mt-1 text-xs text-dim">
                     Заявка от {new Date(u.createdAt).toLocaleDateString("ru-RU")}
                   </p>
+                  {u.crmMatches?.length ? (
+                    <div className="mt-3 border-l-2 border-accent bg-brand-soft/50 px-3 py-2 text-xs text-ink">
+                      <p className="font-medium">Уже есть в CRM — после одобрения увидит заказы и долги этих клиентов:</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {u.crmMatches.map((m) => (
+                          <li key={m.branch}>
+                            {m.branchName}: {m.name} (#{m.customerId}), совпал {m.by === "email" ? "e-mail" : "телефон"}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-dim">В CRM не найден — при первом заказе создастся новый клиент.</p>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="label text-dim" htmlFor={`group-${u.id}`}>

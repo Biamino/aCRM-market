@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { accounts, exec, num, one, q, tx } from "../db.js";
+import { accounts, BRANCHES, exec, num, one, q, runInBranch, tx } from "../db.js";
+import { findCrmCustomer } from "../customer-match.js";
 import { cancelOrder, completeOrder, ORDER_STATUS_SQL, sendToWarehouse } from "../crm.js";
 import { requireAdmin } from "../auth.js";
 import { loadItems, serializeOrder, webServiceUserId } from "./orders.js";
@@ -10,7 +11,8 @@ export const adminRouter = Router();
 adminRouter.use(requireAdmin);
 adminRouter.use(adminProductsRouter);
 
-// заявки на регистрацию (web_accounts — общие для всех филиалов)
+// заявки на регистрацию (web_accounts — общие для всех филиалов). Для заявок на рассмотрении —
+// клиенты CRM с тем же e-mail/телефоном: к ним аккаунт привяжется при первом заказе в филиале
 adminRouter.get("/registrations", async (_req, res) => {
   const users = await accounts.q(
     `SELECT a.id, a.email, a.name, a.company, a.phone, a.status, a.created_at, g.name AS price_group
@@ -19,6 +21,15 @@ adminRouter.get("/registrations", async (_req, res) => {
      WHERE a.role = 'CLIENT'
      ORDER BY (a.status = 'PENDING') DESC, a.created_at DESC`,
   );
+  const matches = new Map<number, { branch: string; branchName: string; customerId: number; name: string; by: string }[]>();
+  for (const u of users.filter((x) => x.status === "PENDING")) {
+    const found = [];
+    for (const b of BRANCHES) {
+      const m = await runInBranch(b, () => findCrmCustomer({ email: u.email, phone: u.phone }));
+      if (m) found.push({ branch: b.id, branchName: b.name, customerId: m.id, name: m.name, by: m.by });
+    }
+    matches.set(Number(u.id), found);
+  }
   res.json({
     users: users.map((u) => ({
       id: Number(u.id),
@@ -28,6 +39,7 @@ adminRouter.get("/registrations", async (_req, res) => {
       phone: u.phone,
       status: u.status,
       priceGroup: u.price_group,
+      crmMatches: matches.get(Number(u.id)) ?? [],
       createdAt: u.created_at,
     })),
   });

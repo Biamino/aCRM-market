@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { branch, BRANCHES, DEFAULT_BRANCH, findBranch, runInBranch } from "../src/db.js";
+import { phoneKey, samePhone } from "../src/customer-match.js";
 import {
   colorKey,
   diskPathFromUrl,
@@ -97,5 +98,26 @@ describe("фото товаров", () => {
     assert.deepEqual(galleryUrls({ web: new Map(), crm: media.crm }, "Белый", "/cover.jpg"), media.crm);
     assert.deepEqual(galleryUrls({ web: new Map(), crm: [] }, null, "/cover.jpg"), ["/cover.jpg"]);
     assert.deepEqual(galleryUrls(undefined, null, null), []);
+  });
+});
+
+describe("сопоставление телефонов с CRM", () => {
+  it("phoneKey убирает форматирование и местные префиксы", () => {
+    assert.equal(phoneKey("+996 (700) 12-34-56"), "996700123456");
+    assert.equal(phoneKey("0700 123 456"), "700123456");
+    assert.equal(phoneKey("8 701 846 3971"), "7018463971");
+    assert.equal(phoneKey(null), "");
+  });
+
+  it("samePhone: один номер в разных записях", () => {
+    assert.ok(samePhone("+996 700 123 456", "0700123456"));
+    assert.ok(samePhone("+7 701 846 3971", "8 (701) 846-39-71"));
+    assert.ok(samePhone("+7 919 421-37-30", "79194213730"));
+  });
+
+  it("samePhone: разные и слишком короткие номера не совпадают", () => {
+    assert.ok(!samePhone("+996 700 123 456", "+996 700 123 457"));
+    assert.ok(!samePhone("123456", "123456"));
+    assert.ok(!samePhone("", ""));
   });
 });

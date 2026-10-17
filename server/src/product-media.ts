@@ -1,18 +1,52 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { q } from "./db.js";
+import { readFile, unlink } from "node:fs/promises";
+import { basename, join } from "node:path";
+import sharp from "sharp";
+
+// без файлового кэша libvips: иначе на Windows удаление только что прочитанного фото падает с EBUSY
+sharp.cache(false);
+import { branch, q } from "./db.js";
 
 export const UPLOAD_DIR = join(process.cwd(), "uploads");
 export const MAX_IMAGES_PER_COLOR = 8;
 
-/** Папка с фото CRM (CRM_UPLOAD_DIR бэкенда + /products). Пусто — отдаём фото через сам бэкенд CRM. */
-export const CRM_PHOTO_DIR = process.env.CRM_UPLOAD_DIR ? join(process.env.CRM_UPLOAD_DIR, "products") : "";
-export const CRM_API_ORIGIN = (process.env.CRM_API_ORIGIN ?? "http://localhost:8080").replace(/\/+$/, "");
 
 export function ensureUploadDir(...segments: string[]) {
   const dir = join(UPLOAD_DIR, ...segments);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/** Ширина превью для сетки каталога; полное фото — не больше FULL_SIZE по длинной стороне. */
+export const THUMB_WIDTH = 640;
+const FULL_SIZE = 1600;
+
+/** Превью сжатого фото: `<uuid>.opt.webp` → `<uuid>.opt-640.webp` (у старых загрузок превью нет). */
+export const thumbPath = (filePath: string) =>
+  /\.opt\.webp$/.test(filePath) ? filePath.replace(/\.opt\.webp$/, `.opt-${THUMB_WIDTH}.webp`) : null;
+
+/**
+ * Сжимает загруженное фото: WebP до 1600 px и превью 640 px, ориентация по EXIF, оригинал удаляется.
+ * Фото с телефона на 5–6 МБ превращается примерно в 150–300 КБ. Возвращает имя нового файла.
+ */
+export async function optimizeUpload(path: string): Promise<string> {
+  const input = await readFile(path); // читаем целиком: выходной файл может совпасть с входным
+  const base = path.replace(/\.[^.\/]+$/, "");
+  const image = sharp(input, { failOn: "error" }).rotate();
+  await Promise.all([
+    image
+      .clone()
+      .resize({ width: FULL_SIZE, height: FULL_SIZE, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toFile(`${base}.opt.webp`),
+    image
+      .clone()
+      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toFile(`${base}.opt-${THUMB_WIDTH}.webp`),
+  ]);
+  await unlink(path);
+  return `${basename(base)}.opt.webp`;
 }
 
 export function toPublicUrl(filePath: string) {
@@ -70,7 +104,9 @@ export async function mediaByProduct(productIds: number[]): Promise<Map<number, 
     const key = colorKey(r.color);
     m.set(key, [...(m.get(key) ?? []), { id: Number(r.id), url: toPublicUrl(r.file_path) }]);
   }
-  for (const r of crm) entry(Number(r.product_id)).crm.push(`/api/crm-photos/${encodeURIComponent(r.filename)}`);
+  // у каждого филиала своя CRM со своими файлами фото
+  const prefix = `/api/crm-photos/${branch().id}`;
+  for (const r of crm) entry(Number(r.product_id)).crm.push(`${prefix}/${encodeURIComponent(r.filename)}`);
   return map;
 }
 

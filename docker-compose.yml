@@ -12,6 +12,7 @@ services:
       - "3307:3306"
     volumes:
       - acrm_db_data:/var/lib/mysql
+      - ./server/db/docker-init:/docker-entrypoint-initdb.d:ro
 
 volumes:
   acrm_db_data:

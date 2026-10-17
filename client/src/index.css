@@ -1,22 +1,26 @@
 @import "tailwindcss";
 
 /*
-  ASDEM brand — лавандовая система:
-  key из лого #B0A0C8 + тема 21st «Lavender Glass» (primary #7D6EB7, paper #F7F7FD).
-  brand-deep #534D73 — CTA с белым текстом (WCAG AA).
+  ASDEM brand — палитра CRM ASDEM (aCRM/src/index.css, asdem.shop), чтобы сайт и CRM были одним брендом:
+  brand = primary #B0A3CD, accent = primary-dark #8B7BAE, brand-soft = primary-light #E4DEF0,
+  paper/ink/line/dim = page/ink/line/ink-2, кнопки — сливовый сайдбар CRM #2E2939 (hover #3B3549).
+  Контраст (WCAG): ink/paper 14.0, dim/paper 4.8, белый на brand-deep 14.1; accent (3.8) — только
+  для крупного текста, рамок и наведения.
 */
 @theme {
-  --font-sans: "Montserrat", system-ui, sans-serif;
+  --font-sans: "Montserrat Variable", "Montserrat", system-ui, sans-serif;
   --font-display: "Cormorant", Georgia, serif;
 
-  --color-brand: #b0a0c8;
-  --color-brand-deep: #534d73;
-  --color-brand-soft: #e8e5f9;
-  --color-ink: #303044;
-  --color-paper: #f7f7fd;
-  --color-line: #e3e3ed;
-  --color-dim: #727284;
-  --color-muted: #f2f2f8;
+  --color-brand: #b0a3cd;
+  --color-accent: #8b7bae;
+  --color-brand-deep: #2e2939;
+  --color-brand-hover: #3b3549;
+  --color-brand-soft: #e4def0;
+  --color-ink: #2b2733;
+  --color-paper: #fafafb;
+  --color-line: #e5e3eb;
+  --color-dim: #726c82;
+  --color-muted: #f1eff6;
   --color-on-brand: #ffffff;
 }
 
@@ -86,20 +90,12 @@ body {
   pointer-events: none;
 }
 
-.home-hero__brand {
-  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 .home-hero__copy {
   animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
 }
 
 .home-hero__cta {
   animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-}
-
-.home-hero__scroll {
-  animation: hero-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
 }
 
 @keyframes hero-rise {
@@ -121,7 +117,7 @@ body {
 }
 
 .btn {
-  @apply label inline-flex min-h-11 cursor-pointer items-center justify-center border border-brand-deep bg-brand-deep px-8 py-3 text-on-brand transition-colors duration-200 hover:border-[#6b5fa8] hover:bg-[#6b5fa8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep disabled:cursor-not-allowed disabled:opacity-40;
+  @apply label inline-flex min-h-11 cursor-pointer items-center justify-center border border-brand-deep bg-brand-deep px-8 py-3 text-on-brand transition-colors duration-200 hover:border-brand-hover hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep disabled:cursor-not-allowed disabled:opacity-40;
 }
 
 .btn-ghost {
@@ -152,9 +148,10 @@ body {
   .preloader,
   .preloader__mark,
   .preloader__line,
-  .home-hero__brand,
   .home-hero__copy,
-  .home-hero__scroll {
+  .home-hero__cta,
+  .pack-bar,
+  .fabric-panel {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
@@ -162,18 +159,40 @@ body {
   }
 }
 
-/* —— Лендинг: появление блоков, отзывы —— */
-.reveal {
-  opacity: 0;
-  transform: translateY(16px);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+/* —— Лендинг: появление блоков — React Bits (components/bits), здесь только CSS-детали —— */
+.pack-bar {
+  transform-origin: bottom;
 }
 
-.reveal--in {
-  opacity: 1;
-  transform: none;
+/* столбики размеров растут при прокрутке там, где есть scroll-driven animations */
+@supports (animation-timeline: view()) {
+  .pack-bar {
+    animation: pack-grow linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 35%;
+  }
+}
+
+@keyframes pack-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.fabric-panel {
+  animation: hero-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.faq__icon::after {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.faq[open] .faq__icon::after {
+  transform: scaleY(0);
+}
+
+.faq[open] .faq__body {
+  animation: hero-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .reviews {
@@ -185,7 +204,7 @@ body {
 
 .review-bubble {
   border-radius: 16px;
-  filter: drop-shadow(0 10px 24px rgb(83 77 115 / 0.16));
+  filter: drop-shadow(0 10px 24px rgb(139 123 174 / 0.18));
   transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -201,9 +220,3 @@ body {
   transform: rotate(0) scale(1.02);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .reveal {
-    opacity: 1 !important;
-    transform: none !important;
-  }
-}

@@ -400,7 +400,7 @@ function ProductRow({
             className={`label min-h-11 cursor-pointer border px-3 transition-colors duration-200 ${
               product.isVisible
                 ? "border-brand-deep bg-brand-deep text-on-brand"
-                : "border-line text-dim hover:border-brand-deep hover:text-brand-deep"
+                : "border-line text-dim hover:border-brand-deep hover:text-accent"
             }`}
           >
             {product.isVisible ? "На витрине" : "Скрыт"}

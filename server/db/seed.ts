@@ -1,16 +1,28 @@
 /**
- * Демо-сид маркета поверх общей базы crm_v1.
+ * Демо-сид маркета поверх базы CRM первого филиала (или BRANCHES[0]).
  * Реальные данные CRM (импорт из Microinvest) не трогает:
  * добавляет/пересоздаёт только собственные записи (артикулы WEB-*,
  * заказы служебного пользователя b2b-web, web_* таблицы).
  */
 import bcrypt from "bcryptjs";
-import { exec, one, pool, q } from "../src/db.js";
-import { applyMarketSchema } from "./apply-market-schema.js";
+import { accounts, branch, BRANCHES, closePools, exec, one, pool, q, runInBranch } from "../src/db.js";
+import { applyAccountsSchema, applyMarketSchema } from "./apply-market-schema.js";
 
 const DAY = 24 * 3600 * 1000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 const img = (seed: string) => `https://picsum.photos/seed/${encodeURIComponent(seed)}/600/800?grayscale`;
+
+/** Справочники пустой CRM (свежая схема без дампа): роли и поставщики демо-товаров. */
+async function ensureReferenceData(supplierTitles: string[]) {
+  await exec(
+    `INSERT IGNORE INTO roles (code, title) VALUES
+       ('admin', 'Администратор'), ('manager', 'Менеджер'), ('employee', 'Сотрудник')`,
+  );
+  for (const title of supplierTitles) {
+    if (!(await one("SELECT id FROM suppliers WHERE title = ?", [title])))
+      await exec("INSERT INTO suppliers (title) VALUES (?)", [title]);
+  }
+}
 
 async function ensureServiceUser(): Promise<number> {
   const existing = await one("SELECT id FROM users WHERE login = 'b2b-web'");
@@ -30,15 +42,15 @@ async function cleanup(serviceUserId: number) {
   );
   if (orderIds.length) {
     const ph = orderIds.map(() => "?").join(",");
-    await pool.query(
+    await pool().query(
       `DELETE r FROM reservations r JOIN order_items oi ON oi.id = r.order_item_id WHERE oi.order_id IN (${ph})`,
       orderIds,
     );
-    await pool.query(`DELETE FROM order_timeline WHERE order_id IN (${ph})`, orderIds);
-    await pool.query(`DELETE FROM customer_ledger WHERE order_id IN (${ph})`, orderIds);
-    await pool.query(`DELETE FROM payments WHERE order_id IN (${ph})`, orderIds);
-    await pool.query(`DELETE FROM order_items WHERE order_id IN (${ph})`, orderIds);
-    await pool.query(`DELETE FROM orders WHERE id IN (${ph})`, orderIds);
+    await pool().query(`DELETE FROM order_timeline WHERE order_id IN (${ph})`, orderIds);
+    await pool().query(`DELETE FROM customer_ledger WHERE order_id IN (${ph})`, orderIds);
+    await pool().query(`DELETE FROM payments WHERE order_id IN (${ph})`, orderIds);
+    await pool().query(`DELETE FROM order_items WHERE order_id IN (${ph})`, orderIds);
+    await pool().query(`DELETE FROM orders WHERE id IN (${ph})`, orderIds);
   }
 
   // 2. Реализация сида
@@ -47,14 +59,11 @@ async function cleanup(serviceUserId: number) {
   );
   if (consIds.length) {
     const ph = consIds.map(() => "?").join(",");
-    await pool.query(`DELETE FROM web_consignment_items WHERE consignment_id IN (${ph})`, consIds);
-    await pool.query(`DELETE FROM consignments WHERE id IN (${ph})`, consIds);
+    await pool().query(`DELETE FROM web_consignment_items WHERE consignment_id IN (${ph})`, consIds);
+    await pool().query(`DELETE FROM consignments WHERE id IN (${ph})`, consIds);
   }
 
-  // 3. Веб-аккаунты
-  await pool.query("DELETE FROM web_accounts");
-
-  // 4. Демо-товары WEB-*
+  // 3. Демо-товары WEB-*
   const variantIds = (
     await q(
       `SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE p.sku LIKE 'WEB-%'`,
@@ -62,32 +71,32 @@ async function cleanup(serviceUserId: number) {
   ).map((r) => Number(r.id));
   if (variantIds.length) {
     const ph = variantIds.map(() => "?").join(",");
-    await pool.query(
+    await pool().query(
       `DELETE sm FROM stock_movements sm
        JOIN pack_items pi ON pi.id = sm.pack_item_id
        JOIN packs pk ON pk.id = pi.pack_id
        WHERE pk.variant_id IN (${ph})`,
       variantIds,
     );
-    await pool.query(
+    await pool().query(
       `DELETE pi FROM pack_items pi JOIN packs pk ON pk.id = pi.pack_id WHERE pk.variant_id IN (${ph})`,
       variantIds,
     );
-    await pool.query(`DELETE FROM packs WHERE variant_id IN (${ph})`, variantIds);
-    await pool.query(`DELETE FROM pack_templates WHERE variant_id IN (${ph})`, variantIds);
+    await pool().query(`DELETE FROM packs WHERE variant_id IN (${ph})`, variantIds);
+    await pool().query(`DELETE FROM pack_templates WHERE variant_id IN (${ph})`, variantIds);
   }
-  await pool.query("DELETE FROM receipts WHERE created_by = ?", [serviceUserId]);
-  await pool.query(
+  await pool().query("DELETE FROM receipts WHERE created_by = ?", [serviceUserId]);
+  await pool().query(
     "DELETE i FROM web_product_images i JOIN products p ON p.id = i.product_id WHERE p.sku LIKE 'WEB-%'",
   );
-  await pool.query(
+  await pool().query(
     "DELETE c FROM product_colors c JOIN products p ON p.id = c.product_id WHERE p.sku LIKE 'WEB-%'",
   );
-  await pool.query(
+  await pool().query(
     "DELETE d FROM web_product_details d JOIN products p ON p.id = d.product_id WHERE p.sku LIKE 'WEB-%'",
   );
-  await pool.query("DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE sku LIKE 'WEB-%')");
-  await pool.query("DELETE FROM products WHERE sku LIKE 'WEB-%'");
+  await pool().query("DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE sku LIKE 'WEB-%')");
+  await pool().query("DELETE FROM products WHERE sku LIKE 'WEB-%'");
 
   // 5. Демо-клиенты
   const demoCustomers = (await q("SELECT id FROM customers WHERE note = 'b2b demo seed'")).map((r) =>
@@ -95,24 +104,56 @@ async function cleanup(serviceUserId: number) {
   );
   if (demoCustomers.length) {
     const ph = demoCustomers.map(() => "?").join(",");
-    await pool.query(`DELETE FROM customer_contacts WHERE customer_id IN (${ph})`, demoCustomers);
-    await pool.query(`DELETE FROM customer_ledger WHERE customer_id IN (${ph})`, demoCustomers);
-    await pool.query(`DELETE FROM customers WHERE id IN (${ph})`, demoCustomers);
+    await pool().query(`DELETE FROM customer_contacts WHERE customer_id IN (${ph})`, demoCustomers);
+    await pool().query(`DELETE FROM customer_ledger WHERE customer_id IN (${ph})`, demoCustomers);
+    await pool().query(`DELETE FROM customers WHERE id IN (${ph})`, demoCustomers);
   }
 }
 
-async function main() {
+const demoClients = [
+  { email: "client@shop.ru", name: "Ирина Соколова", company: "Бутик «Лана»", group: 1 },
+  { email: "opt@moda.ru", name: "Сергей Ковалёв", company: "ООО «Мода-Опт»", group: 2 },
+  { email: "vip@trend.ru", name: "Анна Мельник", company: "Сеть «Тренд»", group: 3 },
+];
+const multipliers = [1.0, 0.95, 0.9];
+
+/** Аккаунты маркета — одни на все филиалы. Возвращает id аккаунтов demoClients. */
+async function seedAccounts(): Promise<number[]> {
+  await accounts.exec("DELETE FROM web_accounts");
+  const adminPass = await bcrypt.hash("admin123", 10);
+  const clientPass = await bcrypt.hash("client123", 10);
+
+  await accounts.exec(
+    `INSERT INTO web_accounts (email, password_hash, name, role, status)
+     VALUES ('admin@market.ru', ?, 'Администратор', 'ADMIN', 'APPROVED')`,
+    [adminPass],
+  );
+  const ids: number[] = [];
+  for (const c of demoClients) {
+    ids.push(
+      await accounts.exec(
+        `INSERT INTO web_accounts (email, password_hash, name, company, role, status, price_group_id)
+         VALUES (?, ?, ?, ?, 'CLIENT', 'APPROVED', ?)`,
+        [c.email, clientPass, c.name, c.company, c.group],
+      ),
+    );
+  }
+  await accounts.exec(
+    `INSERT INTO web_accounts (email, password_hash, name, company, phone, role, status)
+     VALUES ('new@client.ru', ?, 'Дмитрий Орлов', 'ИП Орлов', '+996 700 44-55-66', 'CLIENT', 'PENDING')`,
+    [clientPass],
+  );
+  return ids;
+}
+
+/** Демо-данные в CRM текущего филиала; stockBonus — лишние пачки, чтобы остатки филиалов различались. */
+async function seedBranch(accountIds: number[], stockBonus: number) {
   await applyMarketSchema();
   const serviceUserId = await ensureServiceUser();
   await cleanup(serviceUserId);
 
   const sizeRows = await q("SELECT id, title FROM sizes");
   const sizeId = Object.fromEntries(sizeRows.map((s) => [s.title, Number(s.id)]));
-
-  // реальные поставщики из дампа CRM
-  const suppliers = await q("SELECT id, title FROM suppliers ORDER BY id LIMIT 20");
-  const supplierByTitle = (t: string) =>
-    Number((suppliers.find((s) => s.title === t) ?? suppliers[0]).id);
 
   // --- Демо-товары в таблицах CRM -------------------------------------------------
   const S4 = { S: 1, M: 2, L: 2, XL: 1 };
@@ -133,6 +174,15 @@ async function main() {
     { sku: "WEB-KM-4099", cat: "Комплекты", title: "Комплект пуш-ап классический", color: "Чёрный", pack: S3, buy: 430, price: 820, sup: "Копа Copa", fullPacks: 6, openUnits: {}, fabric: "Микрофибра", comp: "88% полиамид, 12% эластан", season: "Всесезон", country: "Китай", fit: "Чашка пуш-ап на косточках", staff: "Залежи — не продавался давно", desc: "Классический комплект с чашкой пуш-ап." },
   ];
 
+  // поставщики из дампа CRM; в пустой базе создаются
+  const supplierTitles = [...new Set(catalog.map((c) => c.sup))];
+  await ensureReferenceData(supplierTitles);
+  const suppliers = await q(
+    `SELECT id, title FROM suppliers WHERE title IN (${supplierTitles.map(() => "?").join(",")})`,
+    supplierTitles,
+  );
+  const supplierByTitle = (t: string) => Number(suppliers.find((s) => s.title === t)!.id);
+
   const variantBySku: Record<string, number> = {};
   const priceBySku: Record<string, number> = {};
   const packSizeBySku: Record<string, number> = {};
@@ -149,7 +199,7 @@ async function main() {
     // один складской вариант (остаток общий на модель), состав пачки на нём
     const colors = [item.color, ...((item as { extraColors?: string[] }).extraColors ?? [])];
     const packSize = Object.values(item.pack).reduce((s, n) => s + n, 0);
-    const totalPacks = item.fullPacks + (colors.length - 1) * Math.max(4, Math.floor(item.fullPacks / 2));
+    const totalPacks = item.fullPacks + stockBonus + (colors.length - 1) * Math.max(4, Math.floor(item.fullPacks / 2));
 
     await exec("INSERT IGNORE INTO product_categories (title) VALUES (?)", [item.cat]);
     const category = await one("SELECT id FROM product_categories WHERE title = ?", [item.cat]);
@@ -218,40 +268,20 @@ async function main() {
     }
   }
 
-  // --- Клиенты CRM + веб-аккаунты -------------------------------------------------
-  const adminPass = await bcrypt.hash("admin123", 10);
-  const clientPass = await bcrypt.hash("client123", 10);
-
-  await exec(
-    `INSERT INTO web_accounts (email, password_hash, name, role, status)
-     VALUES ('admin@market.ru', ?, 'Администратор', 'ADMIN', 'APPROVED')`,
-    [adminPass],
-  );
-
-  const demoClients = [
-    { email: "client@shop.ru", name: "Ирина Соколова", company: "Бутик «Лана»", group: 1 },
-    { email: "opt@moda.ru", name: "Сергей Ковалёв", company: "ООО «Мода-Опт»", group: 2 },
-    { email: "vip@trend.ru", name: "Анна Мельник", company: "Сеть «Тренд»", group: 3 },
-  ];
+  // --- Клиенты CRM, привязанные к аккаунтам маркета -------------------------------
   const customerIds: number[] = [];
-  const multipliers = [1.0, 0.95, 0.9];
-  for (const c of demoClients) {
+  for (const [i, c] of demoClients.entries()) {
     const customerId = await exec(
       "INSERT INTO customers (name, company, country, city, note) VALUES (?, ?, 'KG', 'Бишкек', 'b2b demo seed')",
       [c.name, c.company],
     );
     customerIds.push(customerId);
-    await exec(
-      `INSERT INTO web_accounts (customer_id, email, password_hash, name, company, role, status, price_group_id)
-       VALUES (?, ?, ?, ?, ?, 'CLIENT', 'APPROVED', ?)`,
-      [customerId, c.email, clientPass, c.name, c.company, c.group],
-    );
+    await accounts.exec("INSERT INTO web_account_customers (account_id, branch, customer_id) VALUES (?, ?, ?)", [
+      accountIds[i],
+      branch().id,
+      customerId,
+    ]);
   }
-  await exec(
-    `INSERT INTO web_accounts (email, password_hash, name, company, phone, role, status)
-     VALUES ('new@client.ru', ?, 'Дмитрий Орлов', 'ИП Орлов', '+996 700 44-55-66', 'CLIENT', 'PENDING')`,
-    [clientPass],
-  );
 
   // --- История продаж (~90 дней) в общих таблицах orders --------------------------
   type SeedOrder = {
@@ -411,11 +441,23 @@ async function main() {
     cons2, variantBySku["WEB-PJ-2099"], 24, 24 * priceBySku["WEB-PJ-2099"],
   ]);
 
-  console.log("Seed done (общая база crm_v1, CRM-данные не тронуты).");
+  console.log(`${branch().name} (${branch().db}): демо-данные готовы, CRM-данные не тронуты.`);
+}
+
+async function main() {
+  // сид пересоздаёт web_accounts и пишет демо-товары в CRM каждого филиала — только для разработки
+  const host = process.env.DB_HOST ?? "127.0.0.1";
+  if (!["127.0.0.1", "localhost"].includes(host) && process.env.SEED_FORCE !== "1")
+    throw new Error(`Сид запускается только на локальной базе (DB_HOST=${host}). Принудительно: SEED_FORCE=1`);
+
+  await applyAccountsSchema();
+  const accountIds = await seedAccounts();
+  for (const [i, b] of BRANCHES.entries()) await runInBranch(b, () => seedBranch(accountIds, i * 3));
+
   console.log("Админ: admin@market.ru / admin123");
   console.log("Клиент: client@shop.ru / client123 (одобрен)");
   console.log("Клиент: new@client.ru / client123 (ожидает одобрения)");
-  await pool.end();
+  await closePools();
 }
 
 main().catch((e) => {

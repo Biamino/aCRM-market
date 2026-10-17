@@ -32,6 +32,11 @@ export interface Product {
   description?: string | null;
 }
 
+export interface Branch {
+  id: string;
+  name: string;
+}
+
 export interface User {
   id: number;
   email: string;

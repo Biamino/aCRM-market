@@ -3,7 +3,7 @@ import { unlink } from "node:fs/promises";
 import { extname } from "node:path";
 import { Router } from "express";
 import multer from "multer";
-import { exec, one, q } from "../db.js";
+import { branch, exec, one, q } from "../db.js";
 import { CATEGORY_JOIN, CATEGORY_SQL } from "../crm.js";
 import {
   colorKey,
@@ -11,6 +11,8 @@ import {
   ensureUploadDir,
   MAX_IMAGES_PER_COLOR,
   mediaByProduct,
+  optimizeUpload,
+  thumbPath,
   toPublicUrl,
 } from "../product-media.js";
 import { stockByProduct } from "./catalog.js";
@@ -28,7 +30,7 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: (req, _file, cb) => {
       try {
-        cb(null, ensureUploadDir("products", String(Number(req.params.productId))));
+        cb(null, ensureUploadDir(branch().id, "products", String(Number(req.params.productId))));
       } catch (e) {
         cb(e as Error, "");
       }
@@ -209,10 +211,19 @@ adminProductsRouter.post(
       });
     }
 
+    let names: string[];
+    try {
+      names = await Promise.all(files.map((f) => optimizeUpload(f.path)));
+    } catch {
+      await Promise.all(files.map((f) => unlink(f.path).catch(() => undefined)));
+      return res.status(400).json({ error: "Не удалось обработать фото — файл повреждён или это не изображение" });
+    }
+
     let order = Number(current?.m ?? -1) + 1;
     const created: { id: number; url: string }[] = [];
-    for (const file of files) {
-      const publicPath = `/uploads/products/${productId}/${file.filename}`;
+    for (const name of names) {
+      // id товаров в разных филиалах совпадают — папка своя у каждого филиала
+      const publicPath = `/uploads/${branch().id}/products/${productId}/${name}`;
       const id = await exec(
         "INSERT INTO web_product_images (product_id, color, file_path, sort_order) VALUES (?, ?, ?, ?)",
         [productId, color || null, publicPath, order],
@@ -233,7 +244,12 @@ adminProductsRouter.delete("/products/:productId/images/:imageId", async (req, r
   ]);
   if (!row) return res.status(404).json({ error: "Фото не найдено" });
   await exec("DELETE FROM web_product_images WHERE id = ?", [imageId]);
-  if (!/^https?:\/\//i.test(row.file_path)) await unlink(diskPathFromUrl(row.file_path)).catch(() => undefined);
+  if (!/^https?:\/\//i.test(row.file_path)) {
+    const thumb = thumbPath(row.file_path);
+    await Promise.all(
+      [row.file_path, thumb].filter(Boolean).map((p) => unlink(diskPathFromUrl(p!)).catch(() => undefined)),
+    );
+  }
   res.json({ message: "Фото удалено" });
 });
 

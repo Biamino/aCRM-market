@@ -5,6 +5,7 @@ import ColorSwatches from "../components/ColorSwatches";
 import ProductImage from "../components/ProductImage";
 import { useAuth, useCart } from "../store";
 import type { Product } from "../types";
+import { usePageMeta } from "../usePageMeta";
 
 export default function ProductPage() {
   const { id } = useParams();
@@ -28,6 +29,34 @@ export default function ProductPage() {
       })
       .catch((e) => setError(e.message));
   }, [id, color]);
+
+  usePageMeta(
+    product
+      ? {
+          title: `${product.name}${product.color ? `, ${product.color}` : ""} — ${product.model}`,
+          description: (
+            product.description ||
+            `${product.category} ASDEM, артикул ${product.model}. Оптом от одной упаковки (${product.packSize} шт.), доставка по СНГ.`
+          ).slice(0, 300),
+          image: product.imageUrl || undefined,
+          // цена закрыта для гостей — Offer без цены не размечаем
+          jsonLd: {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: product.name,
+            sku: product.model,
+            category: product.category,
+            color: product.color || undefined,
+            material: product.composition || undefined,
+            description: product.description || undefined,
+            image: (product.imageUrls?.length ? product.imageUrls : [product.imageUrl])
+              .filter(Boolean)
+              .map((u) => new URL(u, window.location.origin).href),
+            brand: { "@type": "Brand", name: "ASDEM" },
+          },
+        }
+      : {},
+  );
 
   if (error) return <p className="py-16 text-center text-sm text-red-700">{error}</p>;
   if (!product)
@@ -68,6 +97,9 @@ export default function ProductPage() {
             alt={product.color ? `${product.name}, цвет ${product.color}` : product.name}
             width={600}
             height={800}
+            loading="eager"
+            fetchPriority="high"
+            sizes="(min-width: 768px) 50vw, 100vw"
             className="h-full w-full object-cover"
           />
         </div>

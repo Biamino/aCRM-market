@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, fmtMoney, ORDER_STATUS } from "../api";
 import ProductImage from "../components/ProductImage";
+import { useBranch } from "../store";
 import type { Order } from "../types";
+import { usePageMeta } from "../usePageMeta";
 
 export default function OrdersPage() {
+  usePageMeta({ title: "Мои заказы", noindex: true });
   const location = useLocation();
   const created = Boolean((location.state as any)?.created);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState("");
+  const { branchName } = useBranch();
 
   useEffect(() => {
     api<{ orders: Order[] }>("/orders")
@@ -18,7 +22,9 @@ export default function OrdersPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-display mb-2 text-3xl">Мои заказы</h1>
+      <h1 className="font-display mb-2 text-3xl">
+        Мои заказы{branchName && <span className="text-dim"> · {branchName}</span>}
+      </h1>
       {created && (
         <p role="status" className="mb-6 border border-brand px-4 py-3 text-sm">
           Заявка создана и передана сотруднику на проверку.

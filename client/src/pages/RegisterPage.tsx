@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { usePageMeta } from "../usePageMeta";
 
 export default function RegisterPage() {
+  usePageMeta({
+    title: "Стать оптовым партнёром",
+    description: "Заявка на доступ к оптовому шоуруму ASDEM: после одобрения — цены, остатки и заказ от одной упаковки.",
+  });
   const [form, setForm] = useState({ name: "", company: "", phone: "", email: "", password: "" });
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = useState(false);

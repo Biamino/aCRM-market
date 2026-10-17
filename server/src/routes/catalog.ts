@@ -244,12 +244,33 @@ catalogRouter.get("/products/:id", optionalAuth, async (req, res) => {
   });
 });
 
+/** Обложка модели: общие фото → фото первого цвета → фото CRM → старая обложка. */
+function coverUrl(media: ProductMedia | undefined, fallbackUrl: string | null) {
+  return galleryUrls(media, null, null)[0] ?? [...(media?.web.values() ?? [])][0]?.[0]?.url ?? fallbackUrl ?? "";
+}
+
+// категории витрины: число моделей и обложка — самая новая модель категории
 catalogRouter.get("/categories", async (_req, res) => {
   const rows = await q(
-    `SELECT ${CATEGORY_SQL} AS name, COUNT(*) AS cnt
+    `SELECT ${CATEGORY_SQL} AS name, COUNT(*) AS cnt, MAX(p.id) AS cover_id
      ${FROM_PRODUCTS}
      WHERE ${ON_SHOWCASE}
      GROUP BY name ORDER BY cnt DESC`,
   );
-  res.json({ categories: rows.map((r, i) => ({ id: i + 1, name: r.name })) });
+  const coverIds = rows.map((r) => Number(r.cover_id));
+  const [media, details] = await Promise.all([
+    mediaByProduct(coverIds),
+    coverIds.length
+      ? q(`SELECT product_id, image_url FROM web_product_details WHERE product_id IN (${coverIds.map(() => "?").join(",")})`, coverIds)
+      : Promise.resolve([]),
+  ]);
+  const fallback = new Map(details.map((d) => [Number(d.product_id), d.image_url as string | null]));
+  res.json({
+    categories: rows.map((r, i) => ({
+      id: i + 1,
+      name: r.name,
+      count: Number(r.cnt),
+      imageUrl: coverUrl(media.get(Number(r.cover_id)), fallback.get(Number(r.cover_id)) ?? null),
+    })),
+  });
 });

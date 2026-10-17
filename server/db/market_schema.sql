@@ -1,5 +1,6 @@
--- Расширение общей базы crm_v1 для B2B-маркета.
--- Таблицы CRM (products, orders, packs, ...) маркет не меняет — только добавляет web_*.
+-- Расширение базы CRM филиала (crm_v1, crm_dordoi, …) для B2B-маркета.
+-- Применяется к каждому филиалу. Таблицы CRM (products, orders, packs, ...) маркет
+-- не меняет — только добавляет web_*. Аккаунты маркета — в accounts_schema.sql.
 
 -- Совместимость со свежей CRM: те же колонки и таблицы, что C++ бэкенд создаёт
 -- сам при первом обращении (ensure_* в main.cpp, database_update_*.sql).
@@ -44,29 +45,6 @@ ALTER TABLE suppliers
 INSERT IGNORE INTO product_categories (title) VALUES ('other');
 INSERT IGNORE INTO sizes (title, sort_order) VALUES
     ('XXS', 1), ('XS', 5), ('S', 10), ('M', 20), ('L', 30), ('XL', 40), ('XXL', 50), ('XXXL', 60), ('ONE', 70);
-
-CREATE TABLE IF NOT EXISTS web_price_groups (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(80) NOT NULL UNIQUE,
-    multiplier DECIMAL(6,3) NOT NULL DEFAULT 1.0
-);
-
--- Аккаунты закрытого B2B-сайта. Связаны с клиентами CRM (customers).
-CREATE TABLE IF NOT EXISTS web_accounts (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    customer_id BIGINT NULL,
-    email VARCHAR(160) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(160) NOT NULL,
-    company VARCHAR(180),
-    phone VARCHAR(80),
-    role VARCHAR(16) NOT NULL DEFAULT 'CLIENT', -- CLIENT | ADMIN
-    status VARCHAR(16) NOT NULL DEFAULT 'PENDING', -- PENDING | APPROVED | REJECTED
-    price_group_id BIGINT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES customers(id),
-    FOREIGN KEY (price_group_id) REFERENCES web_price_groups(id)
-);
 
 -- Расширенная карточка товара (ТЗ 6.4) поверх products.
 -- is_visible — витрина маркета (opt-in). Таблицы CRM не меняются.
@@ -131,10 +109,5 @@ CREATE TABLE IF NOT EXISTS web_consignment_items (
     FOREIGN KEY (consignment_id) REFERENCES consignments(id),
     FOREIGN KEY (variant_id) REFERENCES product_variants(id)
 );
-
-INSERT IGNORE INTO web_price_groups (id, name, multiplier) VALUES
-    (1, 'Стандарт', 1.000),
-    (2, 'Опт+', 0.950),
-    (3, 'VIP', 0.900);
 
 INSERT IGNORE INTO web_settings (k, v) VALUES ('staleDays', '30');

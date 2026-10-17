@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { useAuth, useCart } from "../store";
-import wordmark from "../assets/asdem-wordmark.png";
-import mark from "../assets/asdem-mark.png";
+import { useAuth, useBranch, useCart } from "../store";
+import BranchSwitcher from "./BranchSwitcher";
+import wordmark from "../assets/logo-wordmark.webp";
+import mark from "../assets/logo-mark.webp";
 import CookieBanner from "./CookieBanner";
 import Preloader from "./Preloader";
 import { LEGAL_NAV } from "../legal/documents";
+import { COMPANY } from "../legal/company";
 
 interface Category {
   id: number;
@@ -16,6 +18,7 @@ interface Category {
 export default function Layout() {
   const { user, logout } = useAuth();
   const { count } = useCart();
+  const { pageKey } = useBranch();
   const navigate = useNavigate();
   const location = useLocation();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -25,7 +28,7 @@ export default function Layout() {
     api<{ categories: Category[] }>("/catalog/categories")
       .then((d) => setCategories(d.categories))
       .catch(() => {});
-  }, []);
+  }, [pageKey]);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -35,19 +38,19 @@ export default function Layout() {
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3.5 md:px-8 md:py-4">
           <nav aria-label="Аккаунт" className="flex items-center gap-4 md:gap-6">
             {user?.role === "ADMIN" && (
-              <NavLink to="/admin" className="label hidden hover:text-brand-deep md:block">
+              <NavLink to="/admin" className="label hidden hover:text-accent md:block">
                 Админ
               </NavLink>
             )}
             {user && user.role !== "ADMIN" && (
-              <NavLink to="/orders" className="label hidden hover:text-brand-deep md:block">
+              <NavLink to="/orders" className="label hidden hover:text-accent md:block">
                 Заказы
               </NavLink>
             )}
             {user ? (
               <button
                 type="button"
-                className="label cursor-pointer hover:text-brand-deep"
+                className="label cursor-pointer hover:text-accent"
                 onClick={() => {
                   logout();
                   navigate("/");
@@ -56,7 +59,7 @@ export default function Layout() {
                 Выйти
               </button>
             ) : (
-              <NavLink to="/login" className="label hover:text-brand-deep">
+              <NavLink to="/login" className="label hover:text-accent">
                 Войти
               </NavLink>
             )}
@@ -75,13 +78,13 @@ export default function Layout() {
 
           <nav aria-label="Основная навигация" className="flex items-center justify-end gap-4 md:gap-7">
             {!user && (
-              <NavLink to="/register" className="label hidden hover:text-brand-deep sm:block">
+              <NavLink to="/register" className="label hidden hover:text-accent sm:block">
                 Партнёрам
               </NavLink>
             )}
             <NavLink
               to="/cart"
-              className="label relative hover:text-brand-deep"
+              className="label relative hover:text-accent"
               aria-label={`Корзина, позиций: ${count}`}
             >
               Корзина
@@ -98,13 +101,15 @@ export default function Layout() {
         </div>
 
         <div className="mx-auto max-w-7xl overflow-x-auto border-t border-line/60 px-4 md:px-8">
-          <nav aria-label="Категории" className="flex gap-6 whitespace-nowrap py-3">
+          {/* min-h-14: переключатель филиала (h-8 + py-3) появляется после загрузки — строка не растёт */}
+          <nav aria-label="Категории" className="flex min-h-14 items-center gap-6 whitespace-nowrap py-3">
+            <BranchSwitcher />
             <NavLink
               to="/"
               end
               className={() => {
                 const active = isHome && !new URLSearchParams(location.search).get("category");
-                return `label hover:text-brand-deep ${active ? "text-brand-deep underline decoration-brand underline-offset-4" : "text-dim"}`;
+                return `label hover:text-accent ${active ? "text-brand-deep underline decoration-brand underline-offset-4" : "text-dim"}`;
               }}
             >
               Все
@@ -115,7 +120,7 @@ export default function Layout() {
                 <NavLink
                   key={c.id}
                   to={`/?category=${encodeURIComponent(c.name)}`}
-                  className={`label hover:text-brand-deep ${active ? "text-brand-deep underline decoration-brand underline-offset-4" : "text-dim"}`}
+                  className={`label hover:text-accent ${active ? "text-brand-deep underline decoration-brand underline-offset-4" : "text-dim"}`}
                 >
                   {c.name}
                 </NavLink>
@@ -128,7 +133,7 @@ export default function Layout() {
       {!user && !isHome && (
         <div className="border-b border-line bg-brand-soft/70">
           <div className="mx-auto max-w-7xl px-4 py-3 md:px-8">
-            <p className="text-xs text-dim">
+            <p className="text-xs text-ink">
               Закрытый оптовый шоурум ASDEM. Цены и наличие доступны после одобрения заявки.{" "}
               <Link to="/register" className="text-brand-deep underline">
                 Оставить заявку
@@ -139,7 +144,8 @@ export default function Layout() {
       )}
 
       <main id="main" className={isHome ? "w-full flex-1" : "mx-auto w-full max-w-7xl flex-1 px-4 py-8 md:px-8"}>
-        <Outlet />
+        {/* смена филиала перезагружает страницу: товары и заказы у филиалов свои */}
+        <Outlet key={pageKey} />
       </main>
 
       <footer className="border-t border-line bg-ink text-brand">
@@ -147,12 +153,22 @@ export default function Layout() {
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <Link to="/" aria-label="ASDEM">
-                <img src={wordmark} alt="ASDEM" width={140} height={29} className="h-6 w-auto brightness-110" />
+                <img src={wordmark} alt="ASDEM" width={140} height={29} loading="lazy" className="h-6 w-auto brightness-110" />
               </Link>
-              <p className="mt-3 max-w-md text-xs text-brand/70">
+              <p className="mt-3 max-w-md text-xs text-brand">
                 Оптовые поставки женского белья, пижам и домашней одежды. Работаем только с одобренными
                 партнёрами.
               </p>
+              {COMPANY.whatsapp && (
+                <a
+                  href={`https://wa.me/${COMPANY.whatsapp}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-block text-sm text-brand transition-colors hover:text-paper"
+                >
+                  WhatsApp: {COMPANY.whatsappDisplay}
+                </a>
+              )}
             </div>
             <nav aria-label="Юридическая информация" className="flex flex-wrap gap-x-5 gap-y-2">
               {LEGAL_NAV.map((item) => (
@@ -166,7 +182,7 @@ export default function Layout() {
               ))}
             </nav>
           </div>
-          <p className="text-[11px] text-brand/50">
+          <p className="text-[11px] text-paper/60">
             © {new Date().getFullYear()} ASDEM. Закрытый B2B-сайт. Использование означает согласие с
             условиями документов.
           </p>

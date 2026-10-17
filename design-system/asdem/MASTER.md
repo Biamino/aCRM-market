@@ -16,24 +16,23 @@
 
 ### Color Palette
 
-Ключевой цвет — dusty lavender из лого ASDEM (`#B0A0C8`). Система собрана через 21st MCP theme **[Lavender Glass](https://21st.dev/community/themes/lavender-glass)** + ui-ux-pro-max (calm lavender / soft editorial).
+Палитра — та же, что в CRM ASDEM (`aCRM/src/index.css`, asdem.shop): сайт и CRM — один бренд.
+Логотипы и иконки тоже из aCRM (`client/public/logo-*.png`, `favicon.*`, `apple-touch-icon.png`).
 
-| Role | Hex | CSS Variable |
-|------|-----|--------------|
-| Brand (logo lavender) | `#B0A0C8` | `--color-brand` |
-| Brand deep (CTA) | `#534D73` | `--color-brand-deep` |
-| Lavender mid (CTA hover) | `#6B5FA8` | — |
-| Theme primary | `#7D6EB7` | — |
-| Brand soft | `#E8E5F9` | `--color-brand-soft` |
-| On brand | `#FFFFFF` | `--color-on-brand` |
-| Background / paper | `#F7F7FD` | `--color-paper` |
-| Foreground / ink | `#303044` | `--color-ink` |
-| Muted surface | `#F2F2F8` | `--color-muted` |
-| Dim text | `#727284` | `--color-dim` |
-| Border | `#E3E3ED` | `--color-line` |
-| Destructive | `#DC2626` | — |
+| Role | Hex | CSS Variable | CRM token | Контраст |
+|------|-----|--------------|-----------|----------|
+| Brand | `#B0A3CD` | `--color-brand` | primary | декор; на ink 6.0:1 |
+| Accent | `#8B7BAE` | `--color-accent` | primary-dark | только крупный текст, рамки, hover (3.8:1) |
+| Brand soft | `#E4DEF0` | `--color-brand-soft` | primary-light | фон секций |
+| Brand deep (CTA) | `#2E2939` | `--color-brand-deep` | side (сайдбар) | белый текст 14.1:1 |
+| Brand hover | `#3B3549` | `--color-brand-hover` | side-hover | белый текст 11.7:1 |
+| Paper | `#FAFAFB` | `--color-paper` | page | — |
+| Ink | `#2B2733` | `--color-ink` | ink | на paper 14.0:1 |
+| Dim | `#726C82` | `--color-dim` | ink-2 | на paper 4.8:1; на brand-soft не использовать (3.8) |
+| Line | `#E5E3EB` | `--color-line` | line | — |
+| Muted | `#F1EFF6` | `--color-muted` | — | — |
 
-**Color Notes:** Cool lavender editorial — не peach/teal, не neon purple gradient. CTA на `brand-deep` (AA). Футер: lavender (`brand`) на ink.
+**Color Notes:** CTA — сливовые, как сайдбар CRM; лаванда — акценты, фон и декор.
 
 ### Typography
 

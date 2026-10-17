@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import HomeHero from "../components/HomeHero";
-import { About, Advantages, ContactCta, HowToOrder, Reviews } from "../components/HomeSections";
-import { useReveal } from "../components/useReveal";
 import ProductCard from "../components/ProductCard";
+import { useBranch } from "../store";
 import type { Product } from "../types";
+import { usePageMeta } from "../usePageMeta";
+import type { CategoryTile } from "../components/landing/Story";
+import { HeroLayout } from "../components/landing/HeroLayout";
+
+// лендинг с анимациями (gsap, motion, WebGL) — отдельными чанками, каталогу и корзине они не нужны
+const LandingTop = lazy(() => import("../components/landing/LandingTop"));
+const LandingBottom = lazy(() => import("../components/landing/LandingBottom"));
 
 interface CatalogResponse {
   products: Product[];
@@ -23,6 +28,8 @@ export default function CatalogPage() {
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState<CategoryTile[]>([]);
+  const { branches } = useBranch();
 
   function query(pageNum: number) {
     const query = new URLSearchParams();
@@ -60,16 +67,35 @@ export default function CatalogPage() {
   }
 
   const showHero = !category && !params.get("q");
-  useReveal(showHero);
+  usePageMeta(
+    category
+      ? {
+          title: `${category} оптом`,
+          description: `${category} ASDEM оптом от производителя: ${total || "все"} моделей на витрине, заказ от одной упаковки, доставка по СНГ.`,
+        }
+      : params.get("q")
+        ? { title: `Поиск «${params.get("q")}»`, noindex: true }
+        : {},
+  );
+
+  useEffect(() => {
+    if (!showHero) return;
+    api<{ categories: CategoryTile[] }>("/catalog/categories")
+      .then((d) => setCategories(d.categories.filter((c) => c.name)))
+      .catch(() => {});
+  }, [showHero]);
 
   return (
     <div>
       {showHero && (
-        <>
-          <HomeHero />
-          <Advantages />
-          <About />
-        </>
+        <Suspense fallback={<HeroLayout />}>
+          <LandingTop
+            categories={categories}
+            products={products ?? []}
+            models={products === null ? null : total}
+            branches={branches.length}
+          />
+        </Suspense>
       )}
 
       <div id="catalog" className="mx-auto max-w-7xl scroll-mt-28 px-4 py-10 md:px-8 md:py-14">
@@ -138,11 +164,9 @@ export default function CatalogPage() {
       </div>
 
       {showHero && (
-        <>
-          <HowToOrder />
-          <Reviews />
-          <ContactCta />
-        </>
+        <Suspense fallback={null}>
+          <LandingBottom products={products ?? []} />
+        </Suspense>
       )}
     </div>
   );

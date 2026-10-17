@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../store";
+import { usePageMeta } from "../usePageMeta";
 
 export default function LoginPage() {
+  usePageMeta({ title: "Вход для партнёров", noindex: true });
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");

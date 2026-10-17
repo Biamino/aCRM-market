@@ -11,7 +11,9 @@ export const COMPANY = {
   supportEmail: "support@asdem.kg",
   phone: "[Телефон — указать]",
   /** WhatsApp менеджера в международном формате, только цифры (например 996700123456). Пусто — кнопки ведут на e-mail. */
-  whatsapp: "",
+  whatsapp: "996501595411",
+  /** Тот же номер для показа на сайте. */
+  whatsappDisplay: "+996 501 595 411",
   timezone: "Asia/Bishkek (UTC+6)",
   siteUrl: "https://asdem.kg",
   docsUpdatedAt: "8 августа 2026 г.",

@@ -1,10 +1,12 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { COMPANY } from "../legal/company";
 import { LEGAL_BY_SLUG, LEGAL_NAV } from "../legal/documents";
+import { usePageMeta } from "../usePageMeta";
 
 export default function LegalPage() {
   const { slug } = useParams<{ slug: string }>();
   const doc = slug ? LEGAL_BY_SLUG[slug] : undefined;
+  usePageMeta({ title: doc?.title, description: doc?.description });
   if (!doc) return <Navigate to="/legal/terms" replace />;
 
   return (
@@ -17,7 +19,7 @@ export default function LegalPage() {
               key={item.slug}
               to={`/legal/${item.slug}`}
               className={`text-sm transition-colors duration-200 ${
-                item.slug === doc.slug ? "text-brand-deep underline underline-offset-4" : "text-dim hover:text-brand-deep"
+                item.slug === doc.slug ? "text-brand-deep underline underline-offset-4" : "text-dim hover:text-accent"
               }`}
             >
               {item.shortTitle}

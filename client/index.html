@@ -2,18 +2,79 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ASDEM — женское бельё, пижамы и домашняя одежда оптом</title>
+    <meta
+      name="description"
+      content="ASDEM — производитель и оптовый поставщик женского белья, пижам, халатов и домашней одежды. Закрытый B2B-шоурум для магазинов: заказ от одной упаковки, доставка по СНГ."
     />
-    <title>ASDEM — закрытый оптовый шоурум</title>
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta name="theme-color" content="#2e2939" />
+    <meta name="color-scheme" content="light" />
+
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph / соцсети и мессенджеры (WhatsApp, Telegram, VK) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ASDEM" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:title" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
+    <meta
+      property="og:description"
+      content="Производитель и оптовый поставщик. Закрытый B2B-шоурум для магазинов: заказ от одной упаковки, доставка по СНГ."
+    />
+    <meta property="og:image" content="%SITE_URL%/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
+    <meta name="twitter:description" content="Закрытый B2B-шоурум: заказ от одной упаковки, доставка по СНГ." />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "%SITE_URL%/#organization",
+            "name": "ASDEM",
+            "url": "%SITE_URL%/",
+            "logo": "%SITE_URL%/logo-mark.png",
+            "description": "Производитель и оптовый поставщик женского белья, пижам и домашней одежды.",
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "telephone": "+996501595411",
+              "contactType": "sales",
+              "areaServed": ["KG", "KZ", "UZ", "RU"],
+              "availableLanguage": ["ru", "ky"]
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "%SITE_URL%/#website",
+            "url": "%SITE_URL%/",
+            "name": "ASDEM",
+            "inLanguage": "ru",
+            "publisher": { "@id": "%SITE_URL%/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "%SITE_URL%/?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>ASDEM — оптовые поставки женского белья, пижам и домашней одежды. Для работы сайта включите JavaScript.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

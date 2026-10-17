@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
                   <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="#767676" />
                   <YAxis tick={{ fontSize: 11 }} stroke="#767676" tickFormatter={(v) => `${Math.round(v / 1000)}т`} width={40} />
                   <Tooltip formatter={(v: any) => fmtMoney(Number(v))} labelStyle={{ fontSize: 12 }} contentStyle={{ fontSize: 12, border: "1px solid #e5e5e5", borderRadius: 0 }} />
-                  <Line type="monotone" dataKey="revenue" name="Выручка" stroke="#534d73" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="revenue" name="Выручка" stroke="#8b7bae" strokeWidth={1.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -210,7 +210,7 @@ export default function AnalyticsPage() {
               <XAxis dataKey="category" tick={{ fontSize: 11 }} stroke="#767676" />
               <YAxis tick={{ fontSize: 11 }} stroke="#767676" tickFormatter={(v) => `${Math.round(v / 1000)}т`} width={40} />
               <Tooltip formatter={(v: any) => fmtMoney(Number(v))} contentStyle={{ fontSize: 12, border: "1px solid #e5e5e5", borderRadius: 0 }} />
-              <Bar dataKey="revenue" name="Выручка" fill="#534d73" maxBarSize={48} cursor="pointer" onClick={(d: any) => drill(d.categoryId, d.category)} />
+              <Bar dataKey="revenue" name="Выручка" fill="#8b7bae" maxBarSize={48} cursor="pointer" onClick={(d: any) => drill(d.categoryId, d.category)} />
             </BarChart>
           </ResponsiveContainer>
         </div>

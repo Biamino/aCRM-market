@@ -1,4 +1,5 @@
 const TOKEN_KEY = "acrm_token";
+const BRANCH_KEY = "acrm_branch";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -9,13 +10,36 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+/** Выбранный филиал: сервер берёт товары, остатки и заказы из его базы CRM. */
+export function getBranch(): string | null {
+  return localStorage.getItem(BRANCH_KEY);
+}
+
+export function setBranch(branch: string) {
+  localStorage.setItem(BRANCH_KEY, branch);
+}
+
+/** Первый филиал сервера: его товары открываются без ?branch= в адресе. */
+let defaultBranch = "";
+export function setDefaultBranch(branch: string) {
+  defaultBranch = branch;
+}
+
+function authHeaders(): Record<string, string> {
   const token = getToken();
+  const branch = getBranch();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(branch ? { "X-Branch": branch } : {}),
+  };
+}
+
+export async function api<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeaders(),
       ...options.headers,
     },
   });
@@ -25,10 +49,9 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
 }
 
 export async function apiUpload<T = any>(path: string, form: FormData): Promise<T> {
-  const token = getToken();
   const res = await fetch(`/api${path}`, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: authHeaders(),
     body: form,
   });
   const data = await res.json().catch(() => ({}));
@@ -49,6 +72,15 @@ export const ORDER_STATUS: Record<string, string> = {
   partially_returned: "Частичный возврат",
 };
 
-/** Ссылка на карточку товара в выбранном цвете. */
-export const productHref = (productId: number, color?: string | null) =>
-  color ? `/product/${productId}?color=${encodeURIComponent(color)}` : `/product/${productId}`;
+/**
+ * Ссылка на карточку товара в выбранном цвете. id товаров в филиалах совпадают, поэтому
+ * для не первого филиала он попадает в адрес — ссылкой можно делиться.
+ */
+export function productHref(productId: number, color?: string | null) {
+  const params = new URLSearchParams();
+  if (color) params.set("color", color);
+  const branch = getBranch();
+  if (branch && defaultBranch && branch !== defaultBranch) params.set("branch", branch);
+  const qs = params.toString();
+  return `/product/${productId}${qs ? `?${qs}` : ""}`;
+}

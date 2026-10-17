@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
-import logo from "../assets/asdem-logo.png";
+import logo from "../assets/logo-wordmark.webp";
 
-const SESSION_KEY = "asdem_preloader_done";
+export const PRELOADER_KEY = "asdem_preloader_done";
+
+/** Сколько ждать анимациям первого экрана: при первом визите сверху ещё едет прелоадер. */
+export function introDelay(): number {
+  try {
+    return sessionStorage.getItem(PRELOADER_KEY) ? 0 : 1.1;
+  } catch {
+    return 0;
+  }
+}
 
 /**
  * Fashion splash inspired by 21st Preloader (slide-up exit),
@@ -10,7 +19,7 @@ const SESSION_KEY = "asdem_preloader_done";
 export default function Preloader() {
   const [visible, setVisible] = useState(() => {
     try {
-      return !sessionStorage.getItem(SESSION_KEY);
+      return !sessionStorage.getItem(PRELOADER_KEY);
     } catch {
       return true;
     }
@@ -27,7 +36,7 @@ export default function Preloader() {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       try {
-        sessionStorage.setItem(SESSION_KEY, "1");
+        sessionStorage.setItem(PRELOADER_KEY, "1");
       } catch {
         /* ignore */
       }
@@ -37,16 +46,16 @@ export default function Preloader() {
     }
 
     const show = window.setTimeout(() => setReady(true), 60);
-    const exit = window.setTimeout(() => setExiting(true), 1500);
+    const exit = window.setTimeout(() => setExiting(true), 800);
     const done = window.setTimeout(() => {
       try {
-        sessionStorage.setItem(SESSION_KEY, "1");
+        sessionStorage.setItem(PRELOADER_KEY, "1");
       } catch {
         /* ignore */
       }
       document.body.style.overflow = prevOverflow;
       setVisible(false);
-    }, 2300);
+    }, 1450);
 
     return () => {
       document.body.style.overflow = prevOverflow;
@@ -69,7 +78,7 @@ export default function Preloader() {
       aria-label="Загрузка ASDEM"
     >
       <div className={`preloader__mark ${ready ? "preloader__mark--in" : ""}`}>
-        <img src={logo} alt="ASDEM" width={280} height={80} className="h-14 w-auto md:h-20" />
+        <img src={logo} alt="ASDEM" width={280} height={58} className="h-10 w-auto md:h-14" />
         <span className="preloader__line" aria-hidden="true" />
       </div>
     </div>

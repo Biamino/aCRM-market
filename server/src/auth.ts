@@ -1,11 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { num, one } from "./db.js";
+import { accounts, branch, num } from "./db.js";
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? "acrm-market-dev-secret";
 
 export interface AuthUser {
   id: number;
+  /** карточка клиента в CRM текущего филиала (null — ещё не заказывал там) */
   customerId: number | null;
   email: string;
   name: string;
@@ -31,12 +32,13 @@ async function loadUser(req: Request): Promise<AuthUser | null> {
   if (!header?.startsWith("Bearer ")) return null;
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET) as unknown as { sub: number };
-    const row = await one(
-      `SELECT a.id, a.customer_id, a.email, a.name, a.role, a.status, g.multiplier
+    const row = await accounts.one(
+      `SELECT a.id, ac.customer_id, a.email, a.name, a.role, a.status, g.multiplier
        FROM web_accounts a
        LEFT JOIN web_price_groups g ON g.id = a.price_group_id
+       LEFT JOIN web_account_customers ac ON ac.account_id = a.id AND ac.branch = ?
        WHERE a.id = ?`,
-      [Number(payload.sub)],
+      [branch().id, Number(payload.sub)],
     );
     if (!row) return null;
     return {

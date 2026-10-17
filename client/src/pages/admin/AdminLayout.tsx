@@ -1,4 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
+import BranchSwitcher from "../../components/BranchSwitcher";
+import { useBranch } from "../../store";
+import { usePageMeta } from "../../usePageMeta";
 
 const tabs = [
   { to: "/admin", label: "Аналитика", end: true },
@@ -9,9 +12,16 @@ const tabs = [
 ];
 
 export default function AdminLayout() {
+  usePageMeta({ title: "Админ-панель", noindex: true });
+  const { branchName, pageKey } = useBranch();
   return (
     <div>
-      <h1 className="font-display text-3xl">Админ-панель</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-display text-3xl">
+          Админ-панель{branchName && <span className="text-dim"> · {branchName}</span>}
+        </h1>
+        <BranchSwitcher />
+      </div>
       <nav aria-label="Разделы админ-панели" className="mt-6 overflow-x-auto border-b border-line">
         <div className="flex gap-8 whitespace-nowrap">
           {tabs.map((t) => (
@@ -21,7 +31,7 @@ export default function AdminLayout() {
               end={t.end}
               className={({ isActive }) =>
                 `label border-b-2 pb-3 transition-colors duration-200 ${
-                  isActive ? "border-brand-deep text-brand-deep" : "border-transparent text-dim hover:text-brand-deep"
+                  isActive ? "border-brand-deep text-brand-deep" : "border-transparent text-dim hover:text-accent"
                 }`
               }
             >
@@ -31,7 +41,7 @@ export default function AdminLayout() {
         </div>
       </nav>
       <div className="py-8">
-        <Outlet />
+        <Outlet key={pageKey} />
       </div>
     </div>
   );

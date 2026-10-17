@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { exec, one } from "../db.js";
+import { accounts } from "../db.js";
 import { optionalAuth, signToken } from "../auth.js";
 
 export const authRouter = Router();
@@ -13,10 +13,10 @@ authRouter.post("/register", async (req, res) => {
   if (String(password).length < 6)
     return res.status(400).json({ error: "Пароль должен быть не короче 6 символов" });
 
-  const existing = await one("SELECT id FROM web_accounts WHERE email = ?", [email]);
+  const existing = await accounts.one("SELECT id FROM web_accounts WHERE email = ?", [email]);
   if (existing) return res.status(409).json({ error: "Пользователь с таким e-mail уже существует" });
 
-  await exec(
+  await accounts.exec(
     `INSERT INTO web_accounts (email, password_hash, name, company, phone, role, status)
      VALUES (?, ?, ?, ?, ?, 'CLIENT', 'PENDING')`,
     [email, await bcrypt.hash(password, 10), name, company || null, phone || null],
@@ -27,7 +27,7 @@ authRouter.post("/register", async (req, res) => {
 // V2-W02: авторизация по логину/паролю
 authRouter.post("/login", async (req, res) => {
   const { email, password } = req.body ?? {};
-  const account = await one("SELECT * FROM web_accounts WHERE email = ?", [email ?? ""]);
+  const account = await accounts.one("SELECT * FROM web_accounts WHERE email = ?", [email ?? ""]);
   if (!account || !(await bcrypt.compare(password ?? "", account.password_hash)))
     return res.status(401).json({ error: "Неверный e-mail или пароль" });
   if (account.status === "PENDING")

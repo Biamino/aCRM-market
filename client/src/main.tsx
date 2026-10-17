@@ -1,6 +1,11 @@
 import { lazy, StrictMode, Suspense, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+// шрифты с нашего домена: без блокирующего запроса к Google Fonts, кириллица по unicode-range
+import "@fontsource/cormorant/400.css";
+import "@fontsource/cormorant/500.css";
+import "@fontsource/cormorant/500-italic.css";
+import "@fontsource-variable/montserrat";
 import "./index.css";
 import { StoreProvider, useAuth } from "./store";
 import Layout from "./components/Layout";

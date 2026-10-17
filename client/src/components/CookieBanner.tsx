@@ -1,18 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 const KEY = "asdem_cookie_consent";
 
 export default function CookieBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
+  // решаем при первом рендере, а не в эффекте: баннер рисуется вместе со страницей, без позднего появления
+  const [visible, setVisible] = useState(() => {
     try {
-      if (!localStorage.getItem(KEY)) setVisible(true);
+      return !localStorage.getItem(KEY);
     } catch {
-      setVisible(true);
+      return true;
     }
-  }, []);
+  });
 
   if (!visible) return null;
 
@@ -29,7 +28,7 @@ export default function CookieBanner() {
     <div
       role="dialog"
       aria-label="Уведомление о cookie"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-paper/95 px-4 py-4 shadow-[0_-8px_30px_rgba(48,48,68,0.08)] backdrop-blur-sm md:px-8"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-paper/95 px-4 py-4 shadow-[0_-8px_30px_rgba(43,39,51,0.08)] backdrop-blur-sm md:px-8"
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <p className="max-w-3xl text-xs leading-relaxed text-dim md:text-sm">

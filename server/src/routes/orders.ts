@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { PoolConnection } from "mysql2/promise";
-import { num, one, q, tx } from "../db.js";
-import { requireAuth } from "../auth.js";
+import { accounts, branch, num, one, q, tx } from "../db.js";
+import { requireAuth, type AuthUser } from "../auth.js";
 import { ORDER_STATUS_SQL, timeline } from "../crm.js";
 import { galleryUrls, mediaByProduct } from "../product-media.js";
 
@@ -27,6 +27,44 @@ export async function webServiceUserId(): Promise<number> {
   return Number(fallback?.id ?? 1);
 }
 
+/**
+ * Карточка клиента в CRM текущего филиала. Аккаунт маркета общий для филиалов,
+ * а клиент в CRM филиала появляется при первом заказе там.
+ */
+async function customerForBranch(user: AuthUser): Promise<number> {
+  if (user.customerId) return user.customerId;
+  const account = await accounts.one("SELECT name, company, phone, email FROM web_accounts WHERE id = ?", [user.id]);
+  if (!account) throw new Error("Аккаунт не найден");
+  const created = await tx(async (conn) => {
+    const [result] = await conn.query(
+      "INSERT INTO customers (name, company, note) VALUES (?, ?, 'создан из заявки B2B-сайта')",
+      [account.name, account.company ?? null],
+    );
+    const customerId = (result as { insertId: number }).insertId;
+    if (account.phone) {
+      await conn.query(
+        "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'phone', ?, 1)",
+        [customerId, account.phone],
+      );
+    }
+    await conn.query(
+      "INSERT IGNORE INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'email', ?, 0)",
+      [customerId, account.email],
+    );
+    return customerId;
+  });
+  // базы разные — связь пишем после коммита; при гонке побеждает первая запись
+  await accounts.exec(
+    "INSERT IGNORE INTO web_account_customers (account_id, branch, customer_id) VALUES (?, ?, ?)",
+    [user.id, branch().id, created],
+  );
+  const link = await accounts.one(
+    "SELECT customer_id FROM web_account_customers WHERE account_id = ? AND branch = ?",
+    [user.id, branch().id],
+  );
+  return Number(link?.customer_id ?? created);
+}
+
 // V2-W05 + V2-W06: корзина → новый заказ в общих таблицах CRM.
 // Как в CRM (create_order): заказ «new», позиции без резерва; резерв пачек
 // делается, когда сотрудник передаёт заказ на склад.
@@ -36,17 +74,15 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
   const comment: string | undefined = req.body?.comment;
   if (!Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: "Корзина пуста" });
-  if (!user.customerId)
-    return res.status(400).json({ error: "Аккаунт не привязан к карточке клиента. Обратитесь к менеджеру." });
-
-  const createdBy = await webServiceUserId();
 
   try {
+    const customerId = await customerForBranch(user);
+    const createdBy = await webServiceUserId();
     const orderId = await tx(async (conn) => {
       const [orderResult] = await conn.query(
         `INSERT INTO orders (customer_id, status, total_sum, discount_sum, paid_sum, comment, created_by)
          VALUES (?, 'new', 0, 0, 0, ?, ?)`,
-        [user.customerId, comment || "", createdBy],
+        [customerId, comment || "", createdBy],
       );
       const orderId = (orderResult as { insertId: number }).insertId;
       let total = 0;

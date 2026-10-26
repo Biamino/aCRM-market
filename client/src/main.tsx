@@ -1,6 +1,6 @@
 import { lazy, StrictMode, Suspense, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 // шрифты с нашего домена: без блокирующего запроса к Google Fonts, кириллица по unicode-range
 import "@fontsource/cormorant/400.css";
 import "@fontsource/cormorant/500.css";
@@ -27,8 +27,10 @@ const AdminProductsPage = lazy(() => import("./pages/admin/AdminProductsPage"));
 
 function RequireAuth({ children, admin = false }: { children: ReactNode; admin?: boolean }) {
   const { user, ready } = useAuth();
+  const location = useLocation();
   if (!ready) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  // после входа вернём туда, куда шли (например, по ссылке на модель из WhatsApp)
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (admin && user.role !== "ADMIN") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
@@ -40,7 +42,14 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<CatalogPage />} />
-            <Route path="product/:id" element={<ProductPage />} />
+            <Route
+              path="product/:id"
+              element={
+                <RequireAuth>
+                  <ProductPage />
+                </RequireAuth>
+              }
+            />
             <Route path="cart" element={<CartPage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />

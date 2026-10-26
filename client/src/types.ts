@@ -43,6 +43,8 @@ export interface User {
   name: string;
   role: string;
   status?: string;
+  /** персональная скидка клиента, % — применяется ко всему заказу */
+  discountPercent?: number;
 }
 
 export interface CartItem {
@@ -64,8 +66,14 @@ export interface CartItem {
 export interface Order {
   id: number;
   status: string;
+  /** к оплате, со скидкой */
   total: number;
+  /** сумма без скидки */
+  subtotal?: number;
   discount?: number;
+  discountPercent?: number;
+  /** web — оформлен на сайте, crm — заведён сотрудником в CRM */
+  source?: "web" | "crm";
   comment?: string | null;
   createdAt: string;
   user?: { name: string; company?: string | null; email: string };

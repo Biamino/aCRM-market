@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>ASDEM — женское бельё, пижамы и домашняя одежда оптом</title>
+    <title>%SEO_TITLE%</title>
     <meta
       name="description"
-      content="ASDEM — производитель и оптовый поставщик женского белья, пижам, халатов и домашней одежды. Закрытый B2B-шоурум для магазинов: заказ от одной упаковки, доставка по СНГ."
+      content="%SEO_DESCRIPTION%"
     />
     <link rel="canonical" href="%SITE_URL%/" />
     <meta name="theme-color" content="#2e2939" />
@@ -19,21 +19,21 @@
 
     <!-- Open Graph / соцсети и мессенджеры (WhatsApp, Telegram, VK) -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="ASDEM" />
+    <meta property="og:site_name" content="%SITE_NAME%" />
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:url" content="%SITE_URL%/" />
-    <meta property="og:title" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
+    <meta property="og:title" content="%OG_TITLE%" />
     <meta
       property="og:description"
-      content="Производитель и оптовый поставщик. Закрытый B2B-шоурум для магазинов: заказ от одной упаковки, доставка по СНГ."
+      content="%OG_DESCRIPTION%"
     />
     <meta property="og:image" content="%SITE_URL%/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
+    <meta property="og:image:alt" content="%OG_TITLE%" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="ASDEM — женское бельё, пижамы и домашняя одежда оптом" />
-    <meta name="twitter:description" content="Закрытый B2B-шоурум: заказ от одной упаковки, доставка по СНГ." />
+    <meta name="twitter:title" content="%OG_TITLE%" />
+    <meta name="twitter:description" content="%OG_DESCRIPTION%" />
     <meta name="twitter:image" content="%SITE_URL%/og-image.jpg" />
 
     <script type="application/ld+json">
@@ -43,13 +43,13 @@
           {
             "@type": "Organization",
             "@id": "%SITE_URL%/#organization",
-            "name": "ASDEM",
+            "name": "%SITE_NAME%",
             "url": "%SITE_URL%/",
             "logo": "%SITE_URL%/logo-mark.png",
-            "description": "Производитель и оптовый поставщик женского белья, пижам и домашней одежды.",
+            "description": "%ORG_DESCRIPTION%",
             "contactPoint": {
               "@type": "ContactPoint",
-              "telephone": "+996501595411",
+              "telephone": "%SITE_PHONE%",
               "contactType": "sales",
               "areaServed": ["KG", "KZ", "UZ", "RU"],
               "availableLanguage": ["ru", "ky"]
@@ -59,7 +59,7 @@
             "@type": "WebSite",
             "@id": "%SITE_URL%/#website",
             "url": "%SITE_URL%/",
-            "name": "ASDEM",
+            "name": "%SITE_NAME%",
             "inLanguage": "ru",
             "publisher": { "@id": "%SITE_URL%/#organization" },
             "potentialAction": {
@@ -74,7 +74,7 @@
   </head>
   <body>
     <div id="root"></div>
-    <noscript>ASDEM — оптовые поставки женского белья, пижам и домашней одежды. Для работы сайта включите JavaScript.</noscript>
+    <noscript>%NOSCRIPT%</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

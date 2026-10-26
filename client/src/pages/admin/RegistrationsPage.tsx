@@ -8,16 +8,11 @@ interface Registration {
   company?: string | null;
   phone?: string | null;
   status: string;
-  priceGroup: string | null;
+  /** персональная скидка, % — пишется в каждый новый заказ клиента */
+  discountPercent: number;
   createdAt: string;
   /** клиенты CRM с тем же e-mail/телефоном — к ним аккаунт привяжется и увидит их заказы */
   crmMatches?: { branch: string; branchName: string; customerId: number; name: string; by: "email" | "phone" }[];
-}
-
-interface PriceGroup {
-  id: number;
-  name: string;
-  multiplier: number;
 }
 
 const STATUS: Record<string, string> = {
@@ -28,27 +23,66 @@ const STATUS: Record<string, string> = {
 
 export default function RegistrationsPage() {
   const [users, setUsers] = useState<Registration[]>([]);
-  const [groups, setGroups] = useState<PriceGroup[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<Record<number, number>>({});
+  /** вводимые, ещё не сохранённые значения скидки по id клиента */
+  const [discounts, setDiscounts] = useState<Record<number, string>>({});
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const load = () =>
-    api<{ users: Registration[] }>("/admin/registrations").then((d) => setUsers(d.users));
+    api<{ users: Registration[] }>("/admin/registrations").then((d) => {
+      setUsers(d.users);
+      setDiscounts({});
+    });
 
   useEffect(() => {
     load();
-    api<{ groups: PriceGroup[] }>("/admin/price-groups").then((d) => setGroups(d.groups));
   }, []);
 
-  async function act(id: number, action: "approve" | "reject") {
-    const body = action === "approve" ? { priceGroupId: selectedGroup[id] ?? groups[0]?.id } : {};
-    const d = await api<{ message: string }>(`/admin/registrations/${id}/${action}`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    setMessage(d.message);
-    load();
+  const discountOf = (u: Registration) => discounts[u.id] ?? String(u.discountPercent);
+
+  async function run(request: Promise<{ message: string }>) {
+    setError("");
+    try {
+      setMessage((await request).message);
+      load();
+    } catch (e: any) {
+      setMessage("");
+      setError(e.message);
+    }
   }
+
+  const act = (u: Registration, action: "approve" | "reject") =>
+    run(
+      api(`/admin/registrations/${u.id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(action === "approve" ? { discountPercent: Number(discountOf(u)) || 0 } : {}),
+      }),
+    );
+
+  const saveDiscount = (u: Registration) =>
+    run(
+      api(`/admin/registrations/${u.id}/discount`, {
+        method: "PUT",
+        body: JSON.stringify({ discountPercent: Number(discountOf(u)) || 0 }),
+      }),
+    );
+
+  const discountInput = (u: Registration) => (
+    <span className="inline-flex items-center border border-line">
+      <input
+        id={`discount-${u.id}`}
+        type="number"
+        min={0}
+        max={100}
+        step={0.5}
+        inputMode="decimal"
+        className="min-h-11 w-20 bg-transparent px-3 text-sm tabular-nums outline-none"
+        value={discountOf(u)}
+        onChange={(e) => setDiscounts({ ...discounts, [u.id]: e.target.value })}
+      />
+      <span className="pr-3 text-sm text-dim">%</span>
+    </span>
+  );
 
   const pending = users.filter((u) => u.status === "PENDING");
   const rest = users.filter((u) => u.status !== "PENDING");
@@ -58,6 +92,11 @@ export default function RegistrationsPage() {
       {message && (
         <p role="status" className="mb-6 border border-brand px-4 py-3 text-sm">
           {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mb-6 border border-red-700 px-4 py-3 text-sm text-red-700">
+          {error}
         </p>
       )}
 
@@ -85,7 +124,7 @@ export default function RegistrationsPage() {
                       <ul className="mt-1 space-y-0.5">
                         {u.crmMatches.map((m) => (
                           <li key={m.branch}>
-                            {m.branchName}: {m.name} (#{m.customerId}), совпал {m.by === "email" ? "e-mail" : "телефон"}
+                            {m.name} (#{m.customerId}), совпал {m.by === "email" ? "e-mail" : "телефон"}
                           </li>
                         ))}
                       </ul>
@@ -95,25 +134,14 @@ export default function RegistrationsPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="label text-dim" htmlFor={`group-${u.id}`}>
-                    Ценовая группа
+                  <label className="label text-dim" htmlFor={`discount-${u.id}`}>
+                    Скидка
                   </label>
-                  <select
-                    id={`group-${u.id}`}
-                    className="min-h-11 cursor-pointer border border-line bg-transparent px-3 text-sm"
-                    value={selectedGroup[u.id] ?? groups[0]?.id ?? ""}
-                    onChange={(e) => setSelectedGroup({ ...selectedGroup, [u.id]: Number(e.target.value) })}
-                  >
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name} (×{g.multiplier})
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" className="btn" onClick={() => act(u.id, "approve")}>
+                  {discountInput(u)}
+                  <button type="button" className="btn" onClick={() => act(u, "approve")}>
                     Одобрить
                   </button>
-                  <button type="button" className="btn-ghost border-red-700 text-red-700 hover:bg-red-700" onClick={() => act(u.id, "reject")}>
+                  <button type="button" className="btn-ghost border-red-700 text-red-700 hover:bg-red-700" onClick={() => act(u, "reject")}>
                     Отклонить
                   </button>
                 </div>
@@ -130,7 +158,7 @@ export default function RegistrationsPage() {
             <tr className="border-b border-line text-left">
               <th className="label px-4 py-3 font-normal text-dim">Клиент</th>
               <th className="label px-4 py-3 font-normal text-dim">E-mail</th>
-              <th className="label px-4 py-3 font-normal text-dim">Группа</th>
+              <th className="label px-4 py-3 font-normal text-dim">Скидка</th>
               <th className="label px-4 py-3 font-normal text-dim">Статус</th>
             </tr>
           </thead>
@@ -142,7 +170,20 @@ export default function RegistrationsPage() {
                   {u.company && <span className="block text-xs text-dim">{u.company}</span>}
                 </td>
                 <td className="px-4 py-3 text-dim">{u.email}</td>
-                <td className="px-4 py-3">{u.priceGroup ?? "—"}</td>
+                <td className="px-4 py-3">
+                  {u.status === "APPROVED" ? (
+                    <div className="flex items-center gap-2">
+                      {discountInput(u)}
+                      {discounts[u.id] !== undefined && Number(discounts[u.id]) !== u.discountPercent && (
+                        <button type="button" className="btn px-3 py-2" onClick={() => saveDiscount(u)}>
+                          Сохранить
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className={`px-4 py-3 ${u.status === "REJECTED" ? "text-red-700" : ""}`}>{STATUS[u.status]}</td>
               </tr>
             ))}

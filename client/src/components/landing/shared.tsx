@@ -5,7 +5,7 @@ import { COMPANY } from "../../legal/company";
 /** Ссылка на менеджера: WhatsApp, если номер задан в реквизитах, иначе e-mail поддержки. */
 export const managerHref = COMPANY.whatsapp
   ? `https://wa.me/${COMPANY.whatsapp}?text=${encodeURIComponent("Здравствуйте! Хочу узнать про опт ASDEM.")}`
-  : `mailto:${COMPANY.supportEmail}`;
+  : `mailto:${COMPANY.email}`;
 export const managerLabel = COMPANY.whatsapp ? "Написать в WhatsApp" : "Написать менеджеру";
 
 /** Мягкое появление при прокрутке (React Bits AnimatedContent); stagger — по дочерним элементам. */

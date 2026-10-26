@@ -1,0 +1,20 @@
+# Экземпляр маркета на сайт: acrm-market@asdem (asdem.shop), acrm-market@pijamy (asdem-pijamy.shop)
+[Unit]
+Description=ACRM Market (%i)
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+Type=simple
+User=crm
+Group=crm
+WorkingDirectory=/opt/acrm-market/server
+EnvironmentFile=/etc/acrm-market/%i.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

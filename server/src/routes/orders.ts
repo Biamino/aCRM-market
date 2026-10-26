@@ -156,7 +156,7 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
           );
           if (!known.length) throw new Error(`«${product.title}»: цвет «${color}» не найден`);
         }
-        const unitPrice = Math.round(num(product.wholesale_price) * user.priceMultiplier);
+        const unitPrice = Math.round(num(product.wholesale_price));
 
         // Остаток общий на модель: полные пачки ищем по всем складским вариантам модели,
         // сначала вариант того же цвета (старые товары), затем основной.
@@ -192,8 +192,18 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
       }
 
       if (total === 0) throw new Error("Корзина пуста");
-      await conn.query("UPDATE orders SET total_sum = ? WHERE id = ?", [total, orderId]);
-      await timeline(conn, orderId, "created", "Заказ создан через B2B-сайт", createdBy, { source: "web" });
+      // персональная скидка клиента: total_sum — к оплате (его CRM начисляет в долг), discount_sum — сколько скинули
+      const discount = Math.round((total * user.discountPercent) / 100);
+      await conn.query("UPDATE orders SET total_sum = ?, discount_sum = ? WHERE id = ?", [
+        total - discount,
+        discount,
+        orderId,
+      ]);
+      const note = discount > 0 ? `, скидка ${user.discountPercent}% (−${discount})` : "";
+      await timeline(conn, orderId, "created", `Заказ создан через B2B-сайт${note}`, createdBy, {
+        source: "web",
+        discountPercent: user.discountPercent,
+      });
       return orderId;
     });
 
@@ -204,8 +214,16 @@ ordersRouter.post("/", requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * 1 — заказ оформлен на сайте: его создаёт служебный пользователь b2b-web и пишет в историю
+ * «created» с metadata.source = 'web'; остальные заказы заведены сотрудниками в CRM.
+ */
+export const ORDER_FROM_WEB_SQL = `(o.created_by = (SELECT id FROM users WHERE login = 'b2b-web')
+  OR EXISTS (SELECT 1 FROM order_timeline t WHERE t.order_id = o.id AND t.event_type = 'created'
+             AND JSON_VALUE(t.metadata, '$.source') = 'web'))`;
+
 export const ORDER_SELECT = `SELECT o.id, o.customer_id, ${ORDER_STATUS_SQL} AS status, o.total_sum,
-  o.discount_sum, o.paid_sum, o.comment, o.created_at FROM orders o`;
+  o.discount_sum, o.paid_sum, o.comment, o.created_at, ${ORDER_FROM_WEB_SQL} AS from_web FROM orders o`;
 
 export async function loadOrder(orderId: number) {
   const order = await one(`${ORDER_SELECT} WHERE o.id = ?`, [orderId]);
@@ -274,11 +292,20 @@ export async function loadItems(orderIds: number[]) {
 }
 
 export function serializeOrder(order: any, items: any[], customer?: any) {
+  const total = num(order.total_sum);
+  const discount = num(order.discount_sum);
+  const subtotal = total + discount;
   return {
     id: Number(order.id),
     status: order.status,
-    total: num(order.total_sum),
-    discount: num(order.discount_sum),
+    /** где оформлен: на сайте или сотрудником в CRM */
+    source: Number(order.from_web) ? "web" : "crm",
+    /** к оплате, со скидкой */
+    total,
+    /** сумма без скидки */
+    subtotal,
+    discount,
+    discountPercent: discount > 0 && subtotal > 0 ? Math.round((discount / subtotal) * 1000) / 10 : 0,
     paid: num(order.paid_sum),
     comment: order.comment || null,
     createdAt: order.created_at,

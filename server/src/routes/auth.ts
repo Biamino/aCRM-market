@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { accounts } from "../db.js";
+import { accounts, num } from "../db.js";
 import { optionalAuth, signToken } from "../auth.js";
 
 export const authRouter = Router();
@@ -37,12 +37,18 @@ authRouter.post("/login", async (req, res) => {
 
   res.json({
     token: signToken(Number(account.id)),
-    user: { id: Number(account.id), email: account.email, name: account.name, role: account.role },
+    user: {
+      id: Number(account.id),
+      email: account.email,
+      name: account.name,
+      role: account.role,
+      discountPercent: num(account.discount_percent),
+    },
   });
 });
 
 authRouter.get("/me", optionalAuth, (req, res) => {
   if (!req.user) return res.json({ user: null });
-  const { id, email, name, role, status } = req.user;
-  res.json({ user: { id, email, name, role, status } });
+  const { id, email, name, role, status, discountPercent } = req.user;
+  res.json({ user: { id, email, name, role, status, discountPercent } });
 });

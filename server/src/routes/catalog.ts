@@ -125,7 +125,7 @@ function serialize(
   row: ModelRow,
   stock: ModelStock | undefined,
   media: ProductMedia | undefined,
-  user: { status: string; priceMultiplier: number } | undefined,
+  user: { status: string } | undefined,
   selected: ModelColor | null,
   full = false,
 ) {
@@ -158,8 +158,8 @@ function serialize(
     packComposition,
     packSize,
     allowUnits: false,
-    // V2-W04/W01: гость не видит цену и точные остатки
-    price: visible ? Math.round(num(row.wholesale_price) * (user?.priceMultiplier ?? 1)) : null,
+    // V2-W04/W01: гость не видит цену и точные остатки; персональная скидка — на весь заказ (orders.ts)
+    price: visible ? Math.round(num(row.wholesale_price)) : null,
     stockPacks: visible ? stockPacks : null,
     inStock,
   };

@@ -15,7 +15,8 @@ export interface GalleryItem {
   alt: string;
   title: string;
   subtitle?: string;
-  href: string;
+  /** нет — у фото нет ссылки на модель (гость) */
+  href?: string;
 }
 
 interface Props {
@@ -259,9 +260,11 @@ export default function CircleGallery({
               <p className="label text-ink">{current.title}</p>
               {current.subtitle && <p className="mt-1 text-xs text-dim">{current.subtitle}</p>}
               <div className="mt-3 flex items-center justify-center gap-4">
-                <Link to={current.href} className="label text-brand-deep underline underline-offset-4">
-                  Смотреть модель
-                </Link>
+                {current.href && (
+                  <Link to={current.href} className="label text-brand-deep underline underline-offset-4">
+                    Смотреть модель
+                  </Link>
+                )}
                 <button type="button" className="label cursor-pointer text-dim hover:text-ink" onClick={() => setOpen(null)}>
                   Закрыть
                 </button>

@@ -1,9 +1,10 @@
 import { useEffect } from "react";
+import { SITE } from "./site";
 
-const DEFAULT_TITLE = "ASDEM — женское бельё, пижамы и домашняя одежда оптом";
+const DEFAULT_TITLE = SITE.title;
 
 interface PageMeta {
-  /** заголовок страницы; к нему добавится « | ASDEM» */
+  /** заголовок страницы; к нему добавится « | <название сайта>» */
   title?: string;
   description?: string;
   /** картинка для превью ссылки (абсолютный или корневой адрес) */
@@ -41,7 +42,7 @@ export function usePageMeta({ title, description, image, noindex, jsonLd }: Page
       description: head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content ?? null,
       image: head.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
     };
-    const fullTitle = title ? `${title} | ASDEM` : DEFAULT_TITLE;
+    const fullTitle = title ? `${title} | ${SITE.name}` : DEFAULT_TITLE;
     const url = `${window.location.origin}${window.location.pathname}${window.location.search}`;
 
     document.title = fullTitle;

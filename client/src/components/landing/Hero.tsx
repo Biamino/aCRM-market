@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { productHref } from "../../api";
+import { sizedImage } from "../../images";
+import { useAuth } from "../../store";
 import type { Product } from "../../types";
 import SplitText from "../bits/SplitText";
 import RotatingText from "../bits/RotatingText";
@@ -25,19 +27,22 @@ export default function Hero({ products }: { products: Product[] }) {
     return () => window.clearTimeout(t);
   }, [brandReady, delay]);
 
+  const { user } = useAuth();
   const ring = useMemo<GalleryItem[]>(
     () =>
       products
         .filter((p) => p.imageUrl)
         .slice(0, RING_SIZE)
         .map((p) => ({
-          src: p.imageUrl,
+          // кольцо и открытое фото — не шире ~600 px, оригинал CRM не нужен
+          src: sizedImage(p.imageUrl, 640),
           alt: `${p.name}, ${p.color}`,
           title: p.name,
           subtitle: [p.model, p.color].filter(Boolean).join(" · "),
-          href: productHref(p.id, p.color),
+          // гостю модели закрыты — фото без ссылки
+          href: user ? productHref(p.id, p.color) : undefined,
         })),
-    [products],
+    [products, user],
   );
 
   return (

@@ -2,18 +2,19 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, fmtMoney } from "../api";
 import ProductImage from "../components/ProductImage";
-import { useAuth, useBranch, useCart } from "../store";
+import { useAuth, useCart } from "../store";
 import { usePageMeta } from "../usePageMeta";
 
 export default function CartPage() {
   usePageMeta({ title: "Корзина", noindex: true });
   const { user } = useAuth();
   const { items, update, remove, clear, total } = useCart();
-  const { branchName } = useBranch();
   const navigate = useNavigate();
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const discountPercent = user?.discountPercent ?? 0;
+  const discount = Math.round((total * discountPercent) / 100);
 
   async function submit() {
     setSending(true);
@@ -38,7 +39,7 @@ export default function CartPage() {
   if (items.length === 0)
     return (
       <div className="py-20 text-center">
-        <h1 className="font-display text-3xl">Корзина{branchName ? ` ${branchName}` : ""} пуста</h1>
+        <h1 className="font-display text-3xl">Корзина пуста</h1>
         <p className="mt-3 text-sm text-dim">Добавьте товары из каталога, чтобы оформить заявку.</p>
         <Link to="/" className="btn mt-8 inline-flex">
           Перейти в каталог
@@ -50,7 +51,6 @@ export default function CartPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-8">
         <h1 className="font-display text-3xl">Корзина</h1>
-        {branchName && <p className="mt-2 text-sm text-dim">Заявка уйдёт в филиал {branchName}</p>}
       </div>
 
       <ul className="divide-y divide-line border-y border-line">
@@ -106,9 +106,23 @@ export default function CartPage() {
         />
       </div>
 
-      <div className="mt-6 flex items-center justify-between border-t border-line pt-6">
-        <span className="label">Итого</span>
-        <span className="text-xl tabular-nums">{fmtMoney(total)}</span>
+      <div className="mt-6 border-t border-line pt-6">
+        {discount > 0 && (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-dim">Сумма без скидки</span>
+              <span className="tabular-nums">{fmtMoney(total)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <span className="text-dim">Ваша скидка {discountPercent}%</span>
+              <span className="tabular-nums text-brand-deep">−{fmtMoney(discount)}</span>
+            </div>
+          </>
+        )}
+        <div className={`flex items-center justify-between ${discount > 0 ? "mt-4" : ""}`}>
+          <span className="label">{discount > 0 ? "Итого со скидкой" : "Итого"}</span>
+          <span className="text-xl tabular-nums">{fmtMoney(total - discount)}</span>
+        </div>
       </div>
       <p className="mt-2 text-xs text-dim">
         Заявка будет передана сотруднику на проверку. Итоговая сумма подтверждается менеджером. Оформляя

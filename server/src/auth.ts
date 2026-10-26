@@ -12,7 +12,8 @@ export interface AuthUser {
   name: string;
   role: string;
   status: string;
-  priceMultiplier: number;
+  /** персональная скидка клиента, % (web_accounts.discount_percent) */
+  discountPercent: number;
 }
 
 declare global {
@@ -33,9 +34,8 @@ async function loadUser(req: Request): Promise<AuthUser | null> {
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET) as unknown as { sub: number };
     const row = await accounts.one(
-      `SELECT a.id, ac.customer_id, a.email, a.name, a.role, a.status, g.multiplier
+      `SELECT a.id, ac.customer_id, a.email, a.name, a.role, a.status, a.discount_percent
        FROM web_accounts a
-       LEFT JOIN web_price_groups g ON g.id = a.price_group_id
        LEFT JOIN web_account_customers ac ON ac.account_id = a.id AND ac.branch = ?
        WHERE a.id = ?`,
       [branch().id, Number(payload.sub)],
@@ -48,7 +48,7 @@ async function loadUser(req: Request): Promise<AuthUser | null> {
       name: row.name,
       role: row.role,
       status: row.status,
-      priceMultiplier: row.multiplier === null ? 1 : num(row.multiplier),
+      discountPercent: num(row.discount_percent),
     };
   } catch {
     return null;

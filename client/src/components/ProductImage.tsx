@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { imageSrcSet, sizedImage } from "../images";
 
 interface Props {
   src?: string | null;
@@ -10,12 +11,6 @@ interface Props {
   /** ширина картинки в вёрстке — для выбора превью из srcSet */
   sizes?: string;
   fetchPriority?: "high" | "low" | "auto";
-}
-
-/** Сжатые сервером фото (`*.opt.webp`) имеют превью 640 px — отдаём его узким карточкам. */
-function srcSetFor(src: string) {
-  if (!/\.opt\.webp$/.test(src)) return undefined;
-  return `${src.replace(/\.opt\.webp$/, ".opt-640.webp")} 640w, ${src} 1600w`;
 }
 
 export default function ProductImage({ src, alt, className = "", width, height, loading, sizes, fetchPriority }: Props) {
@@ -36,9 +31,10 @@ export default function ProductImage({ src, alt, className = "", width, height, 
 
   return (
     <img
-      src={src}
-      srcSet={srcSetFor(src)}
-      sizes={sizes ?? "(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"}
+      src={sizedImage(src, 640)}
+      srcSet={imageSrcSet(src)}
+      // миниатюры (корзина, заказы, галерея) — по их ширине, иначе браузер возьмёт превью для сетки
+      sizes={sizes ?? (width && width <= 120 ? `${width}px` : "(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw")}
       alt={alt}
       width={width}
       height={height}

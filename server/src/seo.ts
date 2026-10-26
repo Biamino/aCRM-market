@@ -1,12 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import express, { Router, type Request } from "express";
-import { BRANCHES, DEFAULT_BRANCH, findBranch, q, one, runInBranch, type Branch } from "./db.js";
+import { DEFAULT_BRANCH, findBranch, one, runInBranch, type Branch } from "./db.js";
 import { CATEGORY_JOIN, CATEGORY_SQL } from "./crm.js";
 import { galleryUrls, mediaByProduct } from "./product-media.js";
 
 /** Публичный адрес маркета: канонические ссылки, OG, sitemap. */
 export const SITE_URL = (process.env.SITE_URL ?? "https://asdem.kg").replace(/\/+$/, "");
+/** Название сайта в title превью моделей: ASDEM (asdem.shop) или ASDEM Пижамы (asdem-pijamy.shop). */
+const SITE_NAME = process.env.SITE_NAME ?? "ASDEM";
 
 const LEGAL_SLUGS = ["terms", "privacy", "offer", "cookies", "consent", "returns"];
 const ON_SHOWCASE = "p.is_archived = 0 AND COALESCE(d.is_visible, 0) = 1";
@@ -36,24 +38,12 @@ seoRouter.get("/robots.txt", (_req, res) => {
   );
 });
 
-// витрина всех филиалов: главная, категории, модели, юр. документы
-seoRouter.get("/sitemap.xml", async (_req, res) => {
-  const urls: { loc: string; lastmod?: string }[] = [{ loc: `${SITE_URL}/` }, { loc: `${SITE_URL}/register` }];
-  const categories = new Set<string>();
-  for (const b of BRANCHES) {
-    const rows = await runInBranch(b, () =>
-      q(
-        `SELECT p.id, ${CATEGORY_SQL} AS category, p.created_at
-         FROM products p ${CATEGORY_JOIN} LEFT JOIN web_product_details d ON d.product_id = p.id
-         WHERE ${ON_SHOWCASE} ORDER BY p.id DESC LIMIT 5000`,
-      ),
-    );
-    for (const r of rows) {
-      if (r.category) categories.add(r.category);
-      urls.push({ loc: productUrl(b, Number(r.id)), lastmod: r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : undefined });
-    }
-  }
-  for (const c of categories) urls.push({ loc: `${SITE_URL}/?category=${encodeURIComponent(c)}` });
+// каталог и модели открыты только после входа — в sitemap лишь публичные страницы
+seoRouter.get("/sitemap.xml", (_req, res) => {
+  const urls: { loc: string; lastmod?: string }[] = [
+    { loc: `${SITE_URL}/` },
+    { loc: `${SITE_URL}/register` },
+  ];
   for (const slug of LEGAL_SLUGS) urls.push({ loc: `${SITE_URL}/legal/${slug}` });
 
   res.type("application/xml").send(
@@ -88,7 +78,7 @@ async function productMeta(req: Request, id: number): Promise<PageMeta | null> {
     const image = galleryUrls(media.get(id), null, row.image_url)[0] ?? [...(media.get(id)?.web.values() ?? [])][0]?.[0]?.url;
     const lead = row.web_description || `${row.category ?? "Модель"} ASDEM, артикул ${row.sku}.`;
     return {
-      title: `${row.title} — ${row.sku} | ASDEM опт`,
+      title: `${row.title} — ${row.sku} | ${SITE_NAME} опт`,
       description: `${lead} Оптом от одной упаковки, цены после одобрения заявки.`.slice(0, 300),
       url: productUrl(b, id),
       image: image ? absolute(image) : undefined,
@@ -136,6 +126,8 @@ export function spaRouter(dir: string): Router {
   router.use("/assets", express.static(join(dir, "assets"), { immutable: true, maxAge: "1y", index: false }));
   router.use(express.static(dir, { index: false, maxAge: "1d" }));
   router.get(/^\/(?!api\/|uploads\/).*/, async (req, res, next) => {
+    // несуществующий «файл» (/sitemap.xml., /old.php) — 404, а не главная: иначе поисковик получит HTML вместо файла
+    if (/\.[^/]*$/.test(req.path)) return res.status(404).type("text").send("Not found");
     try {
       let html = template();
       const m = req.path.match(/^\/product\/(\d+)$/);

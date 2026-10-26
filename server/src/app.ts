@@ -9,7 +9,7 @@ import { ordersRouter } from "./routes/orders.js";
 import { adminRouter } from "./routes/admin.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { insightsRouter } from "./routes/insights.js";
-import { safeCrmPhotoName, UPLOAD_DIR } from "./product-media.js";
+import { CRM_PHOTO_WIDTHS, crmPhotoVariant, safeCrmPhotoName, UPLOAD_DIR } from "./product-media.js";
 import { BRANCHES, DEFAULT_BRANCH, findBranch, runInBranch } from "./db.js";
 import { clientDist, seoRouter, spaRouter } from "./seo.js";
 
@@ -24,12 +24,23 @@ app.use("/uploads", express.static(UPLOAD_DIR, { fallthrough: true, index: false
 app.use(seoRouter);
 
 // Фото товаров из CRM филиала (product_photos): с диска, если он общий, иначе через бэкенд CRM.
-app.get("/api/crm-photos/:branch/:file", (req, res) => {
+// ?w=320 и т.п. — сжатое WebP-превью (только с диска; оригинал CRM тяжёлый для сетки каталога).
+app.get("/api/crm-photos/:branch/:file", async (req, res) => {
   const b = findBranch(req.params.branch);
   const file = req.params.file;
   if (!b || !safeCrmPhotoName(file)) return res.status(404).end();
   const local = b.crmUploadDir ? join(b.crmUploadDir, "products", file) : "";
-  if (local && existsSync(local)) return res.sendFile(local, { maxAge: "7d" });
+  if (local && existsSync(local)) {
+    const width = Number(req.query.w);
+    if (!(CRM_PHOTO_WIDTHS as readonly number[]).includes(width)) return res.sendFile(local, { maxAge: "7d" });
+    try {
+      const variant = await crmPhotoVariant(local, b.id, file, width);
+      return res.sendFile(variant, { maxAge: "30d", immutable: true });
+    } catch (e) {
+      console.error("crm photo variant:", e);
+      return res.sendFile(local, { maxAge: "7d" });
+    }
+  }
   res.redirect(302, `${b.crmApiOrigin}/api/v1/uploads/products/${encodeURIComponent(file)}`);
 });
 

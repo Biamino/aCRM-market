@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, type Location } from "react-router-dom";
 import { useAuth } from "../store";
 import { usePageMeta } from "../usePageMeta";
 
@@ -7,6 +7,7 @@ export default function LoginPage() {
   usePageMeta({ title: "Вход для партнёров", noindex: true });
   const { login } = useAuth();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: Location } | null)?.from;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -26,7 +27,8 @@ export default function LoginPage() {
           setError("");
           try {
             const user = await login(email, password);
-            navigate(user.role === "ADMIN" ? "/admin" : "/");
+            if (from) navigate(`${from.pathname}${from.search}`, { replace: true });
+            else navigate(user.role === "ADMIN" ? "/admin" : "/");
           } catch (err: any) {
             setError(err.message);
           } finally {

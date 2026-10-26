@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { SITE_CONTENT } from "../../siteContent";
 
 export const BRAND_CLASS =
   "font-display text-[clamp(3.25rem,12vw,8.5rem)] font-medium leading-[0.9] tracking-[-0.04em] text-ink";
 
-export const ASSORTMENT = ["женского белья", "пижам и сорочек", "халатов", "домашней одежды"];
+export const ASSORTMENT = SITE_CONTENT.assortment;
 
 /**
  * Вёрстка первого экрана без анимаций. Сама по себе — заглушка, пока грузится чанк лендинга
@@ -37,7 +38,7 @@ export function HeroLayout({
 
           <div className="home-hero__copy max-w-xl" style={{ animationDelay: `${delay + 0.35}s` }}>
             <h1 className="font-display text-2xl font-medium tracking-tight text-ink md:text-4xl">
-              <span className="sr-only">Оптовые поставки женского белья, пижам, халатов и домашней одежды</span>
+              <span className="sr-only">{SITE_CONTENT.heroHeading}</span>
               <span aria-hidden="true" className="flex flex-wrap items-baseline gap-x-2">
                 Оптовые поставки
                 {accent ?? <span className="text-accent italic">{ASSORTMENT[0]}</span>}

@@ -23,7 +23,19 @@ async function runSqlFile(target: Pool, file: string): Promise<number> {
 
 /** Общие аккаунты маркета (accounts_schema.sql). Пул не закрывает. */
 export async function applyAccountsSchema() {
+  const [before] = await accountsPool
+    .query("SHOW COLUMNS FROM web_accounts LIKE 'discount_percent'")
+    .catch(() => [null]);
   const count = await runSqlFile(accountsPool, "accounts_schema.sql");
+  // ценовые группы (множитель цены) заменены персональной скидкой: переносим их один раз,
+  // когда колонка только что появилась (Опт+ ×0.95 → 5%, VIP ×0.9 → 10%)
+  if (Array.isArray(before) && before.length === 0) {
+    await accountsPool.query(
+      `UPDATE web_accounts a JOIN web_price_groups g ON g.id = a.price_group_id
+       SET a.discount_percent = ROUND((1 - g.multiplier) * 100, 2)
+       WHERE g.multiplier < 1`,
+    );
+  }
   // раньше маркет работал с одним филиалом и хранил клиента прямо в web_accounts.customer_id
   await accountsPool.query(
     `INSERT IGNORE INTO web_account_customers (account_id, branch, customer_id)

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api, fmtMoney, ORDER_STATUS } from "../api";
+import OrderDiscount from "../components/OrderDiscount";
+import OrderSource from "../components/OrderSource";
 import ProductImage from "../components/ProductImage";
-import { useBranch } from "../store";
 import type { Order } from "../types";
 import { usePageMeta } from "../usePageMeta";
 
@@ -12,7 +13,6 @@ export default function OrdersPage() {
   const created = Boolean((location.state as any)?.created);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState("");
-  const { branchName } = useBranch();
 
   useEffect(() => {
     api<{ orders: Order[] }>("/orders")
@@ -23,7 +23,7 @@ export default function OrdersPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-display mb-2 text-3xl">
-        Мои заказы{branchName && <span className="text-dim"> · {branchName}</span>}
+        Мои заказы
       </h1>
       {created && (
         <p role="status" className="mb-6 border border-brand px-4 py-3 text-sm">
@@ -48,6 +48,7 @@ export default function OrdersPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
                 <div>
                   <span className="label">Заказ №{o.id}</span>
+                  <OrderSource source={o.source} />
                   <span className="ml-3 text-xs text-dim">
                     {new Date(o.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
                   </span>
@@ -64,10 +65,7 @@ export default function OrdersPage() {
                   >
                     {ORDER_STATUS[o.status] ?? o.status}
                   </span>
-                  <span className="text-sm tabular-nums">
-                    {fmtMoney(o.total)}
-                    {o.discount ? <span className="ml-1 text-xs text-dim">(скидка {fmtMoney(o.discount)})</span> : null}
-                  </span>
+                  <span className="text-sm tabular-nums">{fmtMoney(o.total)}</span>
                 </div>
               </div>
               <ul className="divide-y divide-line">
@@ -87,6 +85,7 @@ export default function OrdersPage() {
                   </li>
                 ))}
               </ul>
+              <OrderDiscount order={o} />
             </li>
           ))}
         </ul>

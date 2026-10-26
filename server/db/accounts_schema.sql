@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS web_account_customers (
 ALTER TABLE web_account_customers DROP INDEX IF EXISTS uq_branch_customer;
 CREATE INDEX IF NOT EXISTS idx_branch_customer ON web_account_customers (branch, customer_id);
 
+-- персональная скидка клиента в %, задаёт админ; в заказе пишется в orders.discount_sum
+ALTER TABLE web_accounts
+    ADD COLUMN IF NOT EXISTS discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0;
+
+-- ценовые группы больше не используются (заменены discount_percent), таблица оставлена для старых данных
 INSERT IGNORE INTO web_price_groups (id, name, multiplier) VALUES
     (1, 'Стандарт', 1.000),
     (2, 'Опт+', 0.950),

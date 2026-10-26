@@ -142,14 +142,15 @@ describe("каталог", () => {
     assert.ok(r.data.products.every((p: any) => p.colors.length >= 1 && p.allowUnits === false));
   });
 
-  it("VIP-цена ниже стандартной", async () => {
+  it("цена в каталоге одна для всех, скидка VIP — в заказе", async () => {
     const [std, v] = await Promise.all([
       req("/catalog/products", { branch: B2, token: client }),
       req("/catalog/products", { branch: B2, token: vip }),
     ]);
     const p = std.data.products.find((x: any) => x.price > 0);
     const pv = v.data.products.find((x: any) => x.id === p.id);
-    assert.ok(pv.price < p.price);
+    assert.equal(pv.price, p.price);
+    assert.equal((await req("/auth/me", { token: vip })).data.user.discountPercent, 10);
   });
 
   it("поиск, категория и карточка товара в выбранном цвете", async () => {
@@ -255,7 +256,7 @@ describe("заказы", () => {
     const pending = regs.data.users.find((u: any) => u.email === email);
     assert.equal(pending.status, "PENDING");
     assert.deepEqual(pending.crmMatches, [], "в CRM такого клиента нет");
-    const appr = await req(`/admin/registrations/${pending.id}/approve`, { token: admin, body: { priceGroupId: 2 } });
+    const appr = await req(`/admin/registrations/${pending.id}/approve`, { token: admin, body: { discountPercent: 5 } });
     assert.equal(appr.status, 200, appr.data.error);
     const token = await login(email, "client123");
 
@@ -288,16 +289,38 @@ describe("заказы", () => {
     assert.equal((await req("/orders", { branch: B2, token })).data.orders.length, 2);
     assert.deepEqual((await req("/orders", { branch: B1, token })).data.orders, []);
 
-    // цена по группе Опт+ (×0.95)
+    // скидка 5% пишется в заказ: позиции по базовой цене, total_sum — к оплате
     const std = (await req(`/catalog/products/${p.id}`, { branch: B2, token: client })).data.product;
-    assert.equal(p.price, Math.round(std.price * 0.95));
-    assert.equal(r.data.order.items[0].unitPrice, p.price);
+    assert.equal(p.price, std.price);
+    const order = r.data.order;
+    assert.equal(order.items[0].unitPrice, p.price);
+    assert.equal(order.discountPercent, 5);
+    assert.equal(order.discount, Math.round(order.subtotal * 0.05));
+    assert.equal(order.total, order.subtotal - order.discount);
+    const [row] = await inBranch(B2, () => q("SELECT total_sum, discount_sum FROM orders WHERE id = ?", [order.id]));
+    assert.equal(Number(row.total_sum), order.total);
+    assert.equal(Number(row.discount_sum), order.discount);
+
+    // админ меняет скидку — действует на следующие заказы
+    const set = await req(`/admin/registrations/${pending.id}/discount`, {
+      token: admin,
+      method: "PUT",
+      body: { discountPercent: 12.5 },
+    });
+    assert.equal(set.status, 200, set.data.error);
+    const r2 = await req("/orders", { branch: B2, token, body: { items: [{ productId: p.id, color: p.color, packs: 1 }] } });
+    assert.equal(r2.data.order.discount, Math.round(r2.data.order.subtotal * 0.125));
+    assert.equal(
+      (await req(`/admin/registrations/${pending.id}/discount`, { token: admin, method: "PUT", body: { discountPercent: 150 } })).status,
+      400,
+    );
   });
 });
 
 describe("клиент, который уже есть в CRM", () => {
   it("по телефону привязывается к его карточке и видит заказы из CRM", async () => {
-    const digits = String(Date.now()).slice(-9);
+    // номер без ведущего нуля — иначе phoneKey срежет его и останется меньше 9 цифр
+    const digits = `7${String(Date.now()).slice(-8)}`;
     const crmPhone = `+996 (${digits.slice(0, 3)}) ${digits.slice(3, 5)}-${digits.slice(5, 7)}-${digits.slice(7)}`;
     // клиент магазина, заведённый в CRM второго филиала, с заказом через менеджера
     const { customerId, orderId } = await inBranch(B2, async () => {
@@ -308,7 +331,12 @@ describe("клиент, который уже есть в CRM", () => {
         "INSERT INTO customer_contacts (customer_id, contact_type, value, is_primary) VALUES (?, 'phone', ?, 1)",
         [cr.insertId, crmPhone],
       );
-      const user = await q<any>("SELECT id FROM users ORDER BY id LIMIT 1");
+      // менеджер CRM (не служебный b2b-web) — по нему заказ помечается «Из CRM»
+      await pool().query(
+        `INSERT IGNORE INTO users (role_id, full_name, login, password_salt, password_hash, is_blocked)
+         SELECT id, 'Менеджер CRM', 'test-manager', 's', 'h', 0 FROM roles WHERE code = 'employee'`,
+      );
+      const user = await q<any>("SELECT id FROM users WHERE login = 'test-manager'");
       const [or]: any = await pool().query(
         "INSERT INTO orders (customer_id, status, total_sum, paid_sum, comment, created_by) VALUES (?, 'completed', 5000, 5000, 'заказ через менеджера', ?)",
         [cr.insertId, user[0].id],
@@ -332,6 +360,7 @@ describe("клиент, который уже есть в CRM", () => {
     // история из CRM видна сразу, ещё до заказа на сайте; в другом филиале — пусто
     const mine = await req("/orders", { branch: B2, token });
     assert.deepEqual(mine.data.orders.map((o: any) => o.id), [orderId]);
+    assert.equal(mine.data.orders[0].source, "crm");
     assert.equal((await req(`/orders/${orderId}`, { branch: B2, token })).status, 200);
     assert.deepEqual((await req("/orders", { branch: B1, token })).data.orders, []);
 
@@ -340,6 +369,14 @@ describe("клиент, который уже есть в CRM", () => {
     const before = await inBranch(B2, () => q<any>("SELECT COUNT(*) AS n FROM customers")).then((r) => Number(r[0].n));
     const r = await req("/orders", { branch: B2, token, body: { items: [{ productId: p.id, color: p.color, packs: 1 }] } });
     assert.equal(r.status, 201, r.data.error);
+    assert.equal(r.data.order.source, "web");
+    const sources = (await req("/admin/orders", { branch: B2, token: admin })).data.orders
+      .filter((o: any) => [orderId, r.data.order.id].includes(o.id))
+      .map((o: any) => [o.id, o.source]);
+    assert.deepEqual(sources, [
+      [r.data.order.id, "web"],
+      [orderId, "crm"],
+    ]);
     const [row] = await inBranch(B2, () => q<any>("SELECT customer_id FROM orders WHERE id = ?", [r.data.order.id]));
     assert.equal(Number(row.customer_id), customerId);
     assert.equal(await inBranch(B2, () => q<any>("SELECT COUNT(*) AS n FROM customers")).then((x) => Number(x[0].n)), before);
@@ -462,13 +499,14 @@ describe("админка", () => {
     assert.equal((await req("/analytics/stale", { branch: B2, token: admin })).data.days, 45);
   });
 
-  it("ценовые группы и заявки — общие", async () => {
-    const [g1, g2] = await Promise.all([
-      req("/admin/price-groups", { branch: B1, token: admin }),
-      req("/admin/price-groups", { branch: B2, token: admin }),
+  it("скидки клиентов и заявки — общие", async () => {
+    const [r1, r2] = await Promise.all([
+      req("/admin/registrations", { branch: B1, token: admin }),
+      req("/admin/registrations", { branch: B2, token: admin }),
     ]);
-    assert.deepEqual(g1.data, g2.data);
-    assert.equal(g1.data.groups.length, 3);
+    const vipIn = (r: any) => r.data.users.find((u: any) => u.email === "vip@trend.ru").discountPercent;
+    assert.equal(vipIn(r1), 10);
+    assert.equal(vipIn(r2), 10);
     const reg = await req("/auth/register", { body: { email: "reject@me.ru", password: "123456", name: "R" } });
     assert.equal(reg.status, 201);
     const regs = await req("/admin/registrations", { branch: B2, token: admin });
@@ -510,14 +548,13 @@ describe("SEO и отдача", () => {
     assert.ok(text.includes(`Sitemap: ${SITE_URL}/sitemap.xml`));
   });
 
-  it("sitemap.xml: модели обоих филиалов, категории и документы", async () => {
+  it("sitemap.xml: только публичные страницы — каталог и модели закрыты до входа", async () => {
     const text = await (await fetch(`${base}/sitemap.xml`)).text();
     assert.match(text, /^<\?xml/);
-    const p1 = await req("/catalog/products", { branch: B1 });
-    assert.ok(text.includes(`${SITE_URL}/product/${p1.data.products[0].id}</loc>`));
-    assert.ok(text.includes(`?branch=${B2}`), "модели второго филиала — с филиалом в адресе");
+    assert.ok(text.includes(`${SITE_URL}/register</loc>`));
     assert.ok(text.includes(`${SITE_URL}/legal/returns`));
-    assert.ok(text.includes("?category="));
+    assert.ok(!text.includes("/product/"), "модели доступны только после входа");
+    assert.ok(!text.includes("?category="));
   });
 
   it("ответы API сжимаются", async () => {

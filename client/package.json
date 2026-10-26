@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:asdem": "tsc -b && vite build --mode asdem --outDir dist-asdem",
+    "build:pijamy": "tsc -b && vite build --mode pijamy --outDir dist-pijamy",
     "lint": "oxlint",
     "preview": "vite preview"
   },

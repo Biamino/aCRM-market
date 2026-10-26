@@ -1,6 +1,6 @@
-import { mkdirSync } from "node:fs";
-import { readFile, unlink } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile, rename, unlink } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import sharp from "sharp";
 
 // без файлового кэша libvips: иначе на Windows удаление только что прочитанного фото падает с EBUSY
@@ -58,6 +58,37 @@ export function toPublicUrl(filePath: string) {
 export function diskPathFromUrl(filePath: string) {
   const relative = filePath.replace(/^\/+/, "").replace(/^uploads\/?/, "");
   return join(UPLOAD_DIR, relative);
+}
+
+/** Ширины превью фото CRM (`/api/crm-photos/…?w=`): миниатюры, сетка каталога, карточка товара. */
+export const CRM_PHOTO_WIDTHS = [160, 320, 640, 1280] as const;
+
+const variantJobs = new Map<string, Promise<string>>();
+
+/**
+ * Превью фото CRM в WebP нужной ширины. Оригиналы CRM — JPEG ~1280 px по 200–500 КБ,
+ * превью 320 px весит ~15 КБ. Делается один раз и лежит в UPLOAD_DIR/.cache (express.static
+ * точечные папки не отдаёт); имя файла CRM уникально, поэтому кэш не устаревает.
+ */
+export function crmPhotoVariant(source: string, branchId: string, file: string, width: number): Promise<string> {
+  const target = join(UPLOAD_DIR, ".cache", "crm", branchId, String(width), `${file}.webp`);
+  if (existsSync(target)) return Promise.resolve(target);
+  let job = variantJobs.get(target);
+  if (!job) {
+    job = (async () => {
+      mkdirSync(dirname(target), { recursive: true });
+      const tmp = `${target}.${process.pid}.tmp`;
+      await sharp(await readFile(source), { failOn: "error" })
+        .rotate()
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toFile(tmp);
+      await rename(tmp, target);
+      return target;
+    })().finally(() => variantJobs.delete(target));
+    variantJobs.set(target, job);
+  }
+  return job;
 }
 
 /** Имя файла фото CRM безопасно для пути (как safe_photo_filename в бэкенде). */

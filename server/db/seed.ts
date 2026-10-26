@@ -111,11 +111,10 @@ async function cleanup(serviceUserId: number) {
 }
 
 const demoClients = [
-  { email: "client@shop.ru", name: "Ирина Соколова", company: "Бутик «Лана»", group: 1 },
-  { email: "opt@moda.ru", name: "Сергей Ковалёв", company: "ООО «Мода-Опт»", group: 2 },
-  { email: "vip@trend.ru", name: "Анна Мельник", company: "Сеть «Тренд»", group: 3 },
+  { email: "client@shop.ru", name: "Ирина Соколова", company: "Бутик «Лана»", discount: 0 },
+  { email: "opt@moda.ru", name: "Сергей Ковалёв", company: "ООО «Мода-Опт»", discount: 5 },
+  { email: "vip@trend.ru", name: "Анна Мельник", company: "Сеть «Тренд»", discount: 10 },
 ];
-const multipliers = [1.0, 0.95, 0.9];
 
 /** Аккаунты маркета — одни на все филиалы. Возвращает id аккаунтов demoClients. */
 async function seedAccounts(): Promise<number[]> {
@@ -132,9 +131,9 @@ async function seedAccounts(): Promise<number[]> {
   for (const c of demoClients) {
     ids.push(
       await accounts.exec(
-        `INSERT INTO web_accounts (email, password_hash, name, company, role, status, price_group_id)
+        `INSERT INTO web_accounts (email, password_hash, name, company, role, status, discount_percent)
          VALUES (?, ?, ?, ?, 'CLIENT', 'APPROVED', ?)`,
-        [c.email, clientPass, c.name, c.company, c.group],
+        [c.email, clientPass, c.name, c.company, c.discount],
       ),
     );
   }
@@ -335,7 +334,6 @@ async function seedBranch(accountIds: number[], stockBonus: number) {
   );
 
   for (const h of history) {
-    const mult = multipliers[h.client];
     let total = 0;
     const rows: {
       variantId: number;
@@ -346,7 +344,7 @@ async function seedBranch(accountIds: number[], stockBonus: number) {
       color: string;
     }[] = [];
     for (const it of h.items) {
-      const unitPrice = Math.round(priceBySku[it.sku] * mult);
+      const unitPrice = Math.round(priceBySku[it.sku]);
       const skuColors = colorsBySku[it.sku];
       const color = skuColors[Math.floor(rand() * skuColors.length)];
       if (it.packs) {
@@ -372,13 +370,17 @@ async function seedBranch(accountIds: number[], stockBonus: number) {
         total += it.units * unitPrice;
       }
     }
+    // персональная скидка клиента — как в заказе с сайта: total_sum уже со скидкой
+    const discount = Math.round((total * demoClients[h.client].discount) / 100);
+    total -= discount;
     const paid = Math.round(total * (h.paidShare ?? 1));
     const orderId = await exec(
-      `INSERT INTO orders (customer_id, status, total_sum, paid_sum, debt_due, comment, created_by, created_at)
-       VALUES (?, 'completed', ?, ?, ?, '', ?, ?)`,
+      `INSERT INTO orders (customer_id, status, total_sum, discount_sum, paid_sum, debt_due, comment, created_by, created_at)
+       VALUES (?, 'completed', ?, ?, ?, ?, '', ?, ?)`,
       [
         customerIds[h.client],
         total,
+        discount,
         paid,
         h.debtDueAgo !== undefined ? daysAgo(h.debtDueAgo) : paid < total ? daysAgo(-14) : null,
         serviceUserId,

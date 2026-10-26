@@ -1,5 +1,4 @@
 import { NavLink, Outlet } from "react-router-dom";
-import BranchSwitcher from "../../components/BranchSwitcher";
 import { useBranch } from "../../store";
 import { usePageMeta } from "../../usePageMeta";
 
@@ -13,14 +12,13 @@ const tabs = [
 
 export default function AdminLayout() {
   usePageMeta({ title: "Админ-панель", noindex: true });
-  const { branchName, pageKey } = useBranch();
+  const { pageKey } = useBranch();
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-display text-3xl">
-          Админ-панель{branchName && <span className="text-dim"> · {branchName}</span>}
+          Админ-панель
         </h1>
-        <BranchSwitcher />
       </div>
       <nav aria-label="Разделы админ-панели" className="mt-6 overflow-x-auto border-b border-line">
         <div className="flex gap-8 whitespace-nowrap">

@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth, useBranch, useCart } from "../store";
-import BranchSwitcher from "./BranchSwitcher";
 import wordmark from "../assets/logo-wordmark.webp";
 import mark from "../assets/logo-mark.webp";
 import CookieBanner from "./CookieBanner";
 import Preloader from "./Preloader";
 import { LEGAL_NAV } from "../legal/documents";
 import { COMPANY } from "../legal/company";
+import { SITE_CONTENT } from "../siteContent";
 
 interface Category {
   id: number;
@@ -100,10 +100,9 @@ export default function Layout() {
           </nav>
         </div>
 
+        {user && (
         <div className="mx-auto max-w-7xl overflow-x-auto border-t border-line/60 px-4 md:px-8">
-          {/* min-h-14: переключатель филиала (h-8 + py-3) появляется после загрузки — строка не растёт */}
           <nav aria-label="Категории" className="flex min-h-14 items-center gap-6 whitespace-nowrap py-3">
-            <BranchSwitcher />
             <NavLink
               to="/"
               end
@@ -128,6 +127,7 @@ export default function Layout() {
             })}
           </nav>
         </div>
+        )}
       </header>
 
       {!user && !isHome && (
@@ -156,8 +156,7 @@ export default function Layout() {
                 <img src={wordmark} alt="ASDEM" width={140} height={29} loading="lazy" className="h-6 w-auto brightness-110" />
               </Link>
               <p className="mt-3 max-w-md text-xs text-brand">
-                Оптовые поставки женского белья, пижам и домашней одежды. Работаем только с одобренными
-                партнёрами.
+                {SITE_CONTENT.footer}
               </p>
               {COMPANY.whatsapp && (
                 <a

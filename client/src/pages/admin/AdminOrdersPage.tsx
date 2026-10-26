@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtMoney, ORDER_STATUS } from "../../api";
+import OrderDiscount from "../../components/OrderDiscount";
+import OrderSource from "../../components/OrderSource";
 import ProductImage from "../../components/ProductImage";
 import type { Order } from "../../types";
 
@@ -7,6 +9,8 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState("");
   const [open, setOpen] = useState<number | null>(null);
+  const [source, setSource] = useState<"all" | "web" | "crm">("all");
+  const shown = source === "all" ? orders : orders.filter((o) => o.source === source);
 
   const load = () => api<{ orders: Order[] }>("/admin/orders").then((d) => setOrders(d.orders));
 
@@ -47,8 +51,29 @@ export default function AdminOrdersPage() {
         Заказы общие с CRM: подтверждённый заказ резервирует пачки и уходит на склад, сборку отмечают в CRM, после
         неё заказ можно отгрузить здесь или в CRM.
       </p>
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Откуда заказ">
+        {(
+          [
+            ["all", "Все"],
+            ["web", "С сайта"],
+            ["crm", "Из CRM"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={source === id}
+            className={`min-h-9 cursor-pointer border px-3 text-sm ${
+              source === id ? "border-ink bg-ink text-paper" : "border-line hover:border-ink"
+            }`}
+            onClick={() => setSource(id)}
+          >
+            {label} ({id === "all" ? orders.length : orders.filter((o) => o.source === id).length})
+          </button>
+        ))}
+      </div>
       <ul className="space-y-4">
-        {orders.map((o) => (
+        {shown.map((o) => (
           <li key={o.id} className="border border-line">
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div>
@@ -60,6 +85,7 @@ export default function AdminOrdersPage() {
                 >
                   Заказ №{o.id}
                 </button>
+                <OrderSource source={o.source} />
                 <span className="ml-3 text-xs text-dim">
                   {o.user?.name}
                   {o.user?.company && ` · ${o.user.company}`} ·{" "}
@@ -78,7 +104,10 @@ export default function AdminOrdersPage() {
                 >
                   {ORDER_STATUS[o.status] ?? o.status}
                 </span>
-                <span className="text-sm tabular-nums">{fmtMoney(o.total)}</span>
+                <span className="text-sm tabular-nums">
+                  {fmtMoney(o.total)}
+                  {o.discount ? <span className="ml-1 text-xs text-dim">(скидка {o.discountPercent}%)</span> : null}
+                </span>
                 {o.status === "new" && (
                   <button type="button" className="btn px-4 py-2" onClick={() => setStatus(o.id, "warehouse")}>
                     Подтвердить и передать на склад
@@ -120,6 +149,11 @@ export default function AdminOrdersPage() {
                     <span className="text-sm tabular-nums">{fmtMoney(item.lineTotal)}</span>
                   </li>
                 ))}
+                {o.discount ? (
+                  <li>
+                    <OrderDiscount order={o} className="" />
+                  </li>
+                ) : null}
               </ul>
             )}
           </li>

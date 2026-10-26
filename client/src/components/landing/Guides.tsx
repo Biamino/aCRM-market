@@ -1,6 +1,8 @@
 import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { productHref } from "../../api";
+import { SITE_CONTENT } from "../../siteContent";
+import { useAuth } from "../../store";
 import type { Product } from "../../types";
 import { Reveal, SectionHead } from "./shared";
 
@@ -11,6 +13,7 @@ const EXAMPLE_PACK: Record<string, number> = { S: 1, M: 2, L: 2, XL: 1 };
  * чтобы покупатель понял, что именно приедет в одной упаковке.
  */
 export function PackGuide({ products }: { products: Product[] }) {
+  const { user } = useAuth();
   // лучше всего видна идея «ходовых размеров больше» на упаковке с неравной сеткой
   const withPack = products.filter((p) => p.packSize > 0 && Object.keys(p.packComposition).length > 1);
   const uneven = (p: Product) => new Set(Object.values(p.packComposition)).size > 1;
@@ -39,7 +42,7 @@ export function PackGuide({ products }: { products: Product[] }) {
           <figure className="border border-line bg-white p-6 md:p-10">
             <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="label text-dim">{sample ? "Пример с витрины" : "Пример упаковки"}</span>
-              {sample && (
+              {sample && user && (
                 <Link to={productHref(sample.id, sample.color)} className="text-sm text-brand-deep underline-offset-4 hover:underline">
                   {sample.name} · {sample.model}
                 </Link>
@@ -69,50 +72,7 @@ export function PackGuide({ products }: { products: Product[] }) {
   );
 }
 
-const FABRICS = [
-  {
-    name: "Атлас",
-    feel: "Гладкий, с мягким блеском, приятно холодит кожу.",
-    season: "Всесезон",
-    sells: "Пижамы и сорочки в подарок — особенно перед праздниками.",
-    care: "Деликатная стирка при 30°, гладить с изнанки.",
-  },
-  {
-    name: "Хлопок",
-    feel: "Кулирка, интерлок, батист — дышит, не электризуется, мягкий к телу.",
-    season: "Лето и межсезонье",
-    sells: "Базовые пижамы, футболки и сорочки на каждый день — стабильный повторный спрос.",
-    care: "Стирка при 30–40°, не сушить на батарее.",
-  },
-  {
-    name: "Кружево",
-    feel: "Эластичное, облегающее, с декоративным рисунком.",
-    season: "Всесезон",
-    sells: "Комплекты белья — высокий чек и импульсные покупки.",
-    care: "Ручная или деликатная стирка в мешке, без отжима.",
-  },
-  {
-    name: "Бесшовный трикотаж",
-    feel: "Без швов и резинок, не видно под одеждой.",
-    season: "Круглый год",
-    sells: "База полки: берут регулярно и сразу по несколько штук.",
-    care: "Деликатная стирка при 30°, без кондиционера.",
-  },
-  {
-    name: "Вафля и махра",
-    feel: "Вафля — лёгкая и впитывающая, махра — плотная и тёплая.",
-    season: "Вафля — лето, махра — зима",
-    sells: "Халаты: спа-подарки, сезонные распродажи, наборы.",
-    care: "Стирка при 40°, махру сушить в расправленном виде.",
-  },
-  {
-    name: "Футер",
-    feel: "Плотный трикотаж, часто с начёсом — держит тепло.",
-    season: "Осень — зима",
-    sells: "Тёплые пижамы и домашние костюмы — пик спроса с первыми холодами.",
-    care: "Стирка при 30° наизнанку, не отжимать сильно.",
-  },
-];
+const FABRICS = SITE_CONTENT.fabrics;
 
 /** Гид по тканям: доступные вкладки (roving tabindex, стрелки). */
 export function FabricGuide() {
@@ -188,23 +148,7 @@ export function FabricGuide() {
   );
 }
 
-const SHELVES = [
-  {
-    share: "≈ 50%",
-    title: "Базовая полка",
-    text: "Бесшовные и хлопковые комплекты, базовые пижамы — продаются круглый год и обеспечивают повторные покупки.",
-  },
-  {
-    share: "≈ 30%",
-    title: "Сезон",
-    text: "Лёгкий хлопок и вафля к лету, футер и махра к холодам. Закупайте за 4–6 недель до начала сезона.",
-  },
-  {
-    share: "≈ 20%",
-    title: "Подарок и витрина",
-    text: "Атлас, кружево, халаты — поднимают средний чек и делают витрину заметной перед праздниками.",
-  },
-];
+const SHELVES = SITE_CONTENT.shelves;
 
 /** Советы по структуре закупки — ориентир, а не правило. */
 export function AssortmentTips() {

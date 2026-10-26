@@ -27,8 +27,7 @@ export default function LegalPage() {
           ))}
         </nav>
         <p className="mt-8 text-xs text-dim">
-          Редакция от {COMPANY.docsUpdatedAt}. Перед продакшеном заполните реквизиты в{" "}
-          <code className="text-[11px]">client/src/legal/company.ts</code>.
+          Редакция от {COMPANY.docsUpdatedAt}
         </p>
       </aside>
 
@@ -60,9 +59,9 @@ export default function LegalPage() {
         </div>
 
         <p className="mt-12 border-t border-line pt-6 text-xs text-dim">
-          Документы носят информационный характер шаблона под модель закрытого B2B-сайта. Перед
-          коммерческим запуском их должен проверить юрист Оператора с учётом актуальных реквизитов и
-          договоров.
+          Контакты: <a href={`tel:${COMPANY.phone.replace(/\s/g, "")}`} className="text-brand-deep hover:underline">{COMPANY.phone}</a>
+          {" · "}
+          <a href={`mailto:${COMPANY.email}`} className="text-brand-deep hover:underline">{COMPANY.email}</a>
         </p>
       </article>
     </div>

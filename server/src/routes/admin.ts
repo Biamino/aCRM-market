@@ -3,7 +3,7 @@ import { accounts, BRANCHES, exec, num, one, q, runInBranch, tx } from "../db.js
 import { findCrmCustomer } from "../customer-match.js";
 import { cancelOrder, completeOrder, ORDER_STATUS_SQL, sendToWarehouse } from "../crm.js";
 import { requireAdmin } from "../auth.js";
-import { loadItems, serializeOrder, webServiceUserId } from "./orders.js";
+import { loadItems, ORDER_FROM_WEB_SQL, serializeOrder, webServiceUserId } from "./orders.js";
 import { adminProductsRouter } from "./admin-products.js";
 
 export const adminRouter = Router();
@@ -15,9 +15,8 @@ adminRouter.use(adminProductsRouter);
 // клиенты CRM с тем же e-mail/телефоном: к ним аккаунт привяжется при первом заказе в филиале
 adminRouter.get("/registrations", async (_req, res) => {
   const users = await accounts.q(
-    `SELECT a.id, a.email, a.name, a.company, a.phone, a.status, a.created_at, g.name AS price_group
+    `SELECT a.id, a.email, a.name, a.company, a.phone, a.status, a.created_at, a.discount_percent
      FROM web_accounts a
-     LEFT JOIN web_price_groups g ON g.id = a.price_group_id
      WHERE a.role = 'CLIENT'
      ORDER BY (a.status = 'PENDING') DESC, a.created_at DESC`,
   );
@@ -38,7 +37,7 @@ adminRouter.get("/registrations", async (_req, res) => {
       company: u.company,
       phone: u.phone,
       status: u.status,
-      priceGroup: u.price_group,
+      discountPercent: num(u.discount_percent),
       crmMatches: matches.get(Number(u.id)) ?? [],
       createdAt: u.created_at,
     })),
@@ -47,19 +46,36 @@ adminRouter.get("/registrations", async (_req, res) => {
 
 // одобрение открывает доступ ко всем филиалам; карточка клиента в CRM филиала
 // создаётся при первом заказе в нём (orders.ts, customerForBranch)
+/** Скидка клиента в % из тела запроса: undefined — не передана, null — некорректная. */
+function parseDiscount(value: unknown): number | null | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const pct = Number(value);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
+  return Math.round(pct * 100) / 100;
+}
+
 adminRouter.post("/registrations/:id/approve", async (req, res) => {
-  const { priceGroupId } = req.body ?? {};
+  const pct = parseDiscount(req.body?.discountPercent);
+  if (pct === null) return res.status(400).json({ error: "Скидка должна быть от 0 до 100%" });
   const account = await accounts.one("SELECT id, name FROM web_accounts WHERE id = ?", [Number(req.params.id)]);
   if (!account) return res.status(404).json({ error: "Заявка не найдена" });
-  if (priceGroupId) {
-    const group = await accounts.one("SELECT id FROM web_price_groups WHERE id = ?", [Number(priceGroupId)]);
-    if (!group) return res.status(400).json({ error: "Ценовая группа не найдена" });
-  }
   await accounts.exec(
-    "UPDATE web_accounts SET status = 'APPROVED', price_group_id = COALESCE(?, price_group_id, 1) WHERE id = ?",
-    [priceGroupId ? Number(priceGroupId) : null, account.id],
+    "UPDATE web_accounts SET status = 'APPROVED', discount_percent = COALESCE(?, discount_percent) WHERE id = ?",
+    [pct ?? null, account.id],
   );
   res.json({ message: `Клиент ${account.name} одобрен` });
+});
+
+// персональная скидка клиента — действует на новые заказы во всех филиалах
+adminRouter.put("/registrations/:id/discount", async (req, res) => {
+  const pct = parseDiscount(req.body?.discountPercent);
+  if (pct === null || pct === undefined) return res.status(400).json({ error: "Скидка должна быть от 0 до 100%" });
+  const account = await accounts.one("SELECT id, name FROM web_accounts WHERE id = ? AND role = 'CLIENT'", [
+    Number(req.params.id),
+  ]);
+  if (!account) return res.status(404).json({ error: "Клиент не найден" });
+  await accounts.exec("UPDATE web_accounts SET discount_percent = ? WHERE id = ?", [pct, account.id]);
+  res.json({ message: `Скидка ${account.name}: ${pct}%`, discountPercent: pct });
 });
 
 adminRouter.post("/registrations/:id/reject", async (req, res) => {
@@ -69,18 +85,11 @@ adminRouter.post("/registrations/:id/reject", async (req, res) => {
   res.json({ message: `Заявка ${account.name} отклонена` });
 });
 
-adminRouter.get("/price-groups", async (_req, res) => {
-  const groups = await accounts.q("SELECT id, name, multiplier FROM web_price_groups ORDER BY id");
-  res.json({
-    groups: groups.map((g) => ({ id: Number(g.id), name: g.name, multiplier: num(g.multiplier) })),
-  });
-});
-
 // заказы всех клиентов из базы CRM текущего филиала
 adminRouter.get("/orders", async (_req, res) => {
   const orders = await q(
     `SELECT o.id, ${ORDER_STATUS_SQL} AS status, o.total_sum, o.discount_sum, o.paid_sum, o.comment, o.created_at,
-            c.name AS customer_name, c.company AS customer_company
+            ${ORDER_FROM_WEB_SQL} AS from_web, c.name AS customer_name, c.company AS customer_company
      FROM orders o JOIN customers c ON c.id = o.customer_id
      ORDER BY o.created_at DESC, o.id DESC LIMIT 100`,
   );

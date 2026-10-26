@@ -250,7 +250,9 @@ function coverUrl(media: ProductMedia | undefined, fallbackUrl: string | null) {
 }
 
 // категории витрины: число моделей и обложка — самая новая модель категории
-catalogRouter.get("/categories", async (_req, res) => {
+// категории, как и модели, видны только одобренным партнёрам; гостю — пустой список
+catalogRouter.get("/categories", optionalAuth, async (req, res) => {
+  if (!canSeePrices(req.user)) return res.json({ categories: [] });
   const rows = await q(
     `SELECT ${CATEGORY_SQL} AS name, COUNT(*) AS cnt, MAX(p.id) AS cover_id
      ${FROM_PRODUCTS}

@@ -57,14 +57,16 @@ const siteProfile = (site: SiteProfile): Plugin => {
 export default defineConfig(({ mode }) => {
   // режим сборки = сайт: --mode pijamy → asdem-pijamy.shop, иначе asdem.shop
   const site = SITE_PROFILES[siteIdOf(mode)];
+  // бэкенд для dev-прокси: у каждого сайта свой (API_ORIGIN=http://localhost:4001 для pijamy)
+  const api = process.env.API_ORIGIN ?? "http://localhost:4000";
   return {
     plugins: [react(), tailwindcss(), siteProfile(site)],
     server: {
       proxy: {
-        "/api": "http://localhost:4000",
-        "/uploads": "http://localhost:4000",
-        "/robots.txt": "http://localhost:4000",
-        "/sitemap.xml": "http://localhost:4000",
+        "/api": api,
+        "/uploads": api,
+        "/robots.txt": api,
+        "/sitemap.xml": api,
       },
     },
   };

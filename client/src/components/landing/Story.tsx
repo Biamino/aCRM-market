@@ -17,7 +17,8 @@ export interface CategoryTile {
  */
 export function CategoryTiles({ categories }: { categories: CategoryTile[] }) {
   const { user } = useAuth();
-  if (categories.length === 0) return null;
+  // гостю каталог закрыт — плитки категорий не показываем
+  if (!user || categories.length === 0) return null;
   return (
     <section aria-labelledby="categories-title" className="mx-auto max-w-7xl px-4 py-16 md:px-8 md:py-24">
       <div className="flex items-end justify-between gap-4">
@@ -35,7 +36,7 @@ export function CategoryTiles({ categories }: { categories: CategoryTile[] }) {
         {categories.map((c) => (
           <Link
             key={c.name}
-            to={user ? `/?category=${encodeURIComponent(c.name)}` : "/login"}
+            to={`/?category=${encodeURIComponent(c.name)}`}
             className="group w-[62vw] shrink-0 snap-start focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-deep sm:w-[40vw] md:w-auto"
           >
             <div className="aspect-[3/4] overflow-hidden bg-muted">

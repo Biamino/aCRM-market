@@ -154,7 +154,8 @@ describe("каталог", () => {
   });
 
   it("поиск, категория и карточка товара в выбранном цвете", async () => {
-    const cats = await req("/catalog/categories", { branch: B2 });
+    assert.deepEqual((await req("/catalog/categories", { branch: B2 })).data.categories, [], "гостю категории закрыты");
+    const cats = await req("/catalog/categories", { branch: B2, token: client });
     assert.ok(cats.data.categories.length > 0);
     assert.ok(cats.data.categories.every((c: any) => c.count > 0 && c.imageUrl), "у категорий есть число моделей и обложка");
     const all = await req("/catalog/products", { branch: B2 });

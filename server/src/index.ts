@@ -5,6 +5,8 @@ process.on("unhandledRejection", (err) => {
 });
 
 const PORT = Number(process.env.PORT ?? 4000);
-app.listen(PORT, () => {
-  console.log(`API on http://localhost:${PORT}`);
-});
+// на проде HOST=127.0.0.1 — наружу только через nginx; локально без HOST слушаем все интерфейсы
+const HOST = process.env.HOST;
+const onListen = () => console.log(`API on http://${HOST ?? "localhost"}:${PORT}`);
+if (HOST) app.listen(PORT, HOST, onListen);
+else app.listen(PORT, onListen);

@@ -24,11 +24,13 @@ export default function Layout() {
   const [categories, setCategories] = useState<Category[]>([]);
   const isHome = location.pathname === "/";
 
+  // категории — только после входа (гостю сервер отдаёт пустой список); перезапрос при входе/выходе
   useEffect(() => {
+    if (!user) return setCategories([]);
     api<{ categories: Category[] }>("/catalog/categories")
       .then((d) => setCategories(d.categories))
       .catch(() => {});
-  }, [pageKey]);
+  }, [pageKey, user]);
 
   return (
     <div className="flex min-h-dvh flex-col">

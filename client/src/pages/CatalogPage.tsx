@@ -81,11 +81,12 @@ export default function CatalogPage() {
   );
 
   useEffect(() => {
-    if (!showHero) return;
+    // гостю категории не показываем (сервер их и не отдаёт)
+    if (!showHero || !user) return setCategories([]);
     api<{ categories: CategoryTile[] }>("/catalog/categories")
       .then((d) => setCategories(d.categories.filter((c) => c.name)))
       .catch(() => {});
-  }, [showHero]);
+  }, [showHero, user]);
 
   return (
     <div>

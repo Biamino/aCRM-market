@@ -7,7 +7,8 @@ import sharp from "sharp";
 sharp.cache(false);
 import { branch, q } from "./db.js";
 
-export const UPLOAD_DIR = join(process.cwd(), "uploads");
+// у каждого сайта своя папка (UPLOAD_DIR в env), по умолчанию — uploads рядом с сервером
+export const UPLOAD_DIR = process.env.UPLOAD_DIR ?? join(process.cwd(), "uploads");
 export const MAX_IMAGES_PER_COLOR = 8;
 
 

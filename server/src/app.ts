@@ -35,7 +35,8 @@ app.get("/api/crm-photos/:branch/:file", async (req, res) => {
     if (!(CRM_PHOTO_WIDTHS as readonly number[]).includes(width)) return res.sendFile(local, { maxAge: "7d" });
     try {
       const variant = await crmPhotoVariant(local, b.id, file, width);
-      return res.sendFile(variant, { maxAge: "30d", immutable: true });
+      // превью лежат в UPLOAD_DIR/.cache — без dotfiles: "allow" send отвечает 404 на скрытую папку
+      return res.sendFile(variant, { maxAge: "30d", immutable: true, dotfiles: "allow" });
     } catch (e) {
       console.error("crm photo variant:", e);
       return res.sendFile(local, { maxAge: "7d" });
